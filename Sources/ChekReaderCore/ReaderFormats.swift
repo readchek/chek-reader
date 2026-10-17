@@ -4,6 +4,20 @@ import Synchronization
 public protocol ReaderFormatModule: Sendable {
     /// The formats this module opens.
     static var formats: [ReaderFormat] { get }
+
+    /// Parses a publication in one of ``formats``.
+    ///
+    /// Apps call ``Publication/open(_:limits:)`` rather than this, so the
+    /// format is detected and the right module chosen.
+    static func open(_ source: PublicationSource, format: ReaderFormat, limits: ReaderLimits) async throws(ReaderError) -> Publication
+}
+
+extension ReaderFormatModule {
+    /// Reports that the module doesn't open publications yet. Format
+    /// engines replace this as they land.
+    public static func open(_ source: PublicationSource, format: ReaderFormat, limits: ReaderLimits) async throws(ReaderError) -> Publication {
+        throw .notYetImplemented(format)
+    }
 }
 
 /// The formats this app can open.

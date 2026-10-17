@@ -86,6 +86,11 @@ let package = Package(
             swiftSettings: swiftSettings
         ),
         .testTarget(
+            name: "ChekReaderEPUBTests",
+            dependencies: ["ChekReaderCore", "ChekReaderEPUB"],
+            swiftSettings: swiftSettings
+        ),
+        .testTarget(
             name: "ChekReaderNavigatorTests",
             dependencies: ["ChekReaderCore", "ChekReaderNavigator", "ChekReaderEPUB"],
             swiftSettings: swiftSettings

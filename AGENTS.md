@@ -25,7 +25,7 @@ Treat these as settled. Raise a change with the maintainer instead of working ar
 
 | Path | Contents |
 | --- | --- |
-| `Sources/ChekReaderCore` | Formats, `FormatSniffer`, `Locator`, `PublicationSource`, `ReaderLimits`, `ReaderError`, `ReaderFormats` registry. No UI frameworks |
+| `Sources/ChekReaderCore` | Formats, `FormatSniffer`, `Publication` model, `Locator`, `PublicationSource`, `ReaderLimits`, `ReaderError`, `ReaderFormats` registry, and the ZIP and XML readers formats share through `package` access. No UI frameworks |
 | `Sources/ChekReader<Format>` | One target per format product. Each one exposes a `ReaderFormatModule` |
 | `Sources/ChekReaderNavigator` | `ReaderController` session state machine and content views |
 | `Sources/ChekReaderUI` | `ReaderView` and the standard controls |
