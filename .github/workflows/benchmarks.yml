@@ -85,7 +85,9 @@ jobs:
   summary:
     name: Summary
     needs: fixture
-    if: always()
+    # Summarize whatever fixtures finished, but not a run that a newer push
+    # cancelled, which has nothing to merge.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     container: swift:6.4-noble
     steps:

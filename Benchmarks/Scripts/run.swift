@@ -109,6 +109,10 @@ let corpusDirectory = benchmarks.appendingPathComponent(".corpus")
 var corpusArguments = ["swift", benchmarks.appendingPathComponent("Scripts/corpus.swift").path, corpusDirectory.path]
 if let only = options["only"] { corpusArguments += ["--only", only] }
 run(corpusArguments)
+// project.yml bundles ReaderBench/Corpus for device runs, and XcodeGen keeps
+// the reference even when the folder is missing, which fails the build. An
+// empty folder bundles nothing.
+try FileManager.default.createDirectory(at: app.appendingPathComponent("Corpus"), withIntermediateDirectories: true)
 run(["xcodegen", "generate", "--spec", app.appendingPathComponent("project.yml").path])
 
 // 3. Build.
