@@ -65,7 +65,7 @@ jobs:
       # A tarball keeps the app's symlinks and permissions, which artifacts drop.
       - name: Package
         run: tar -czf bench-tools.tgz -C Benchmarks/.build/Build/Products/Release-iphonesimulator ReaderBench.app -C "$PWD/Benchmarks/Scripts" corpus-tool
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: bench-tools
           path: bench-tools.tgz
@@ -108,7 +108,7 @@ jobs:
           swift Benchmarks/Scripts/run.swift "${args[@]}"
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: results-${{ matrix.fixture }}
           path: Benchmarks/Results/ci
@@ -141,7 +141,7 @@ jobs:
           cat summary.md
           echo "--- results.json ---"
           cat results.json
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: |
