@@ -203,12 +203,20 @@ const ChekReader = (() => {
     }
 
     /** Diagnostics for the tests: the sizes the page count came from. */
-    function metrics(): { scrollExtent: number; contentExtent: number; scrollLeft: number; pageWidth: number } {
+    function metrics(): Record<string, unknown> {
+        const scroller = document.scrollingElement ?? root();
+        const body = document.body;
+        const last = body?.lastElementChild?.getBoundingClientRect();
         return {
             scrollExtent: scrollExtent(),
             contentExtent: contentExtent(),
-            scrollLeft: (document.scrollingElement ?? root()).scrollLeft,
+            scrollLeft: scroller.scrollLeft,
             pageWidth,
+            scrollHeight: scroller.scrollHeight,
+            compatMode: document.compatMode,
+            columnCount: body ? getComputedStyle(body).columnCount : null,
+            bodyHeight: body?.getBoundingClientRect().height,
+            last: last ? [last.left, last.top, last.right, last.bottom] : null,
         };
     }
 

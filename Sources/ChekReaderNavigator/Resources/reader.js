@@ -156,11 +156,19 @@ const ChekReader = (() => {
     }
     /** Diagnostics for the tests: the sizes the page count came from. */
     function metrics() {
+        const scroller = document.scrollingElement ?? root();
+        const body = document.body;
+        const last = body?.lastElementChild?.getBoundingClientRect();
         return {
             scrollExtent: scrollExtent(),
             contentExtent: contentExtent(),
-            scrollLeft: (document.scrollingElement ?? root()).scrollLeft,
+            scrollLeft: scroller.scrollLeft,
             pageWidth,
+            scrollHeight: scroller.scrollHeight,
+            compatMode: document.compatMode,
+            columnCount: body ? getComputedStyle(body).columnCount : null,
+            bodyHeight: body?.getBoundingClientRect().height,
+            last: last ? [last.left, last.top, last.right, last.bottom] : null,
         };
     }
     /** Right-to-left text lays its columns out from the right, with negative scroll offsets. */
