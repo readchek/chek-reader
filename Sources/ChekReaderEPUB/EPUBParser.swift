@@ -145,7 +145,7 @@ struct EPUBParser {
         return path
     }
 
-    private func xml(at path: String) async throws(ReaderError) -> XMLNode {
+    private func xml(at path: String) async throws(ReaderError) -> MarkupNode {
         try XMLTree.parse(await container.data(at: path), limits: limits)
     }
 

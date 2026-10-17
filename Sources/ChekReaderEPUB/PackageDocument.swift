@@ -45,7 +45,7 @@ extension PackageDocument {
         let scheme: String?
     }
 
-    init(_ root: XMLNode, path: String) throws(ReaderError) {
+    init(_ root: MarkupNode, path: String) throws(ReaderError) {
         guard root.name == "package" else {
             throw .malformed(reason: "\(path) isn't an EPUB package document.")
         }
@@ -62,11 +62,11 @@ extension PackageDocument {
             }
         }
         let globalMetas = metas.filter { $0.refines == nil }
-        func refinement(_ property: String, of element: XMLNode) -> String? {
+        func refinement(_ property: String, of element: MarkupNode) -> String? {
             guard let id = element.attribute("id") else { return nil }
             return refinements[id]?.first { $0.property == property }?.value
         }
-        func values(_ name: String) -> [XMLNode] {
+        func values(_ name: String) -> [MarkupNode] {
             entries.filter { $0.name == name && $0.trimmedText != nil }
         }
         func global(_ property: String) -> [String] {
@@ -91,7 +91,7 @@ extension PackageDocument {
         }
 
         // Creators default to authors; contributors have no default role.
-        for (element, defaultRole) in entries.compactMap({ element -> (XMLNode, String?)? in
+        for (element, defaultRole) in entries.compactMap({ element -> (MarkupNode, String?)? in
             switch element.name {
             case "creator": (element, "aut")
             case "contributor": (element, nil)
@@ -197,13 +197,13 @@ extension PackageDocument {
 
     /// The metadata's children, with nested wrappers such as EPUB 2's
     /// `dc-metadata` and `x-metadata` flattened in place.
-    private static func flatten(_ element: XMLNode) -> [XMLNode] {
+    private static func flatten(_ element: MarkupNode) -> [MarkupNode] {
         element.elements.flatMap { child in
             child.name.hasSuffix("-metadata") ? child.elements : [child]
         }
     }
 
-    private static func meta(_ element: XMLNode) -> Meta? {
+    private static func meta(_ element: MarkupNode) -> Meta? {
         guard element.name == "meta" else { return nil }
         if let property = element.attribute("property") {
             guard let value = element.trimmedText else { return nil }

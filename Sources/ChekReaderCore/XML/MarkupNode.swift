@@ -1,9 +1,10 @@
-/// An element of a parsed XML document.
+/// An element of a parsed XML document. It isn't called `XMLNode` because
+/// Foundation has a class with that name on macOS.
 ///
 /// Names are matched without their namespace prefix, so `dc:title` is found
 /// as `title`. Publications use prefixes inconsistently, and the element's
 /// position in the document tells the formats apart well enough.
-package struct XMLNode: Hashable, Sendable {
+package struct MarkupNode: Hashable, Sendable {
     /// The element's name without its prefix.
     package var name: String
     /// The element's namespace URI, if it has one.
@@ -14,7 +15,7 @@ package struct XMLNode: Hashable, Sendable {
     package var children: [Child]
 
     package enum Child: Hashable, Sendable {
-        case element(XMLNode)
+        case element(MarkupNode)
         case text(String)
     }
 
@@ -26,19 +27,19 @@ package struct XMLNode: Hashable, Sendable {
     }
 
     /// The child elements, in document order.
-    package var elements: [XMLNode] {
+    package var elements: [MarkupNode] {
         children.compactMap {
             if case .element(let element) = $0 { element } else { nil }
         }
     }
 
     /// The child elements named `name`.
-    package func elements(named name: String) -> [XMLNode] {
+    package func elements(named name: String) -> [MarkupNode] {
         elements.filter { $0.name == name }
     }
 
     /// The first child element named `name`.
-    package func firstElement(named name: String) -> XMLNode? {
+    package func firstElement(named name: String) -> MarkupNode? {
         for case .element(let element) in children where element.name == name {
             return element
         }
@@ -46,13 +47,13 @@ package struct XMLNode: Hashable, Sendable {
     }
 
     /// Every element below this one named `name`, depth first.
-    package func descendants(named name: String) -> [XMLNode] {
-        var found: [XMLNode] = []
+    package func descendants(named name: String) -> [MarkupNode] {
+        var found: [MarkupNode] = []
         collect(named: name, into: &found)
         return found
     }
 
-    private func collect(named name: String, into found: inout [XMLNode]) {
+    private func collect(named name: String, into found: inout [MarkupNode]) {
         for case .element(let element) in children {
             if element.name == name {
                 found.append(element)
@@ -62,7 +63,7 @@ package struct XMLNode: Hashable, Sendable {
     }
 
     /// The first element below this one named `name`, depth first.
-    package func firstDescendant(named name: String) -> XMLNode? {
+    package func firstDescendant(named name: String) -> MarkupNode? {
         for case .element(let element) in children {
             if element.name == name {
                 return element

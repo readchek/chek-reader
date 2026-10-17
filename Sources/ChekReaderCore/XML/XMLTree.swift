@@ -3,7 +3,7 @@ import Foundation
 import FoundationXML
 #endif
 
-/// Parses XML into ``XMLNode`` trees, safely.
+/// Parses XML into ``MarkupNode`` trees, safely.
 ///
 /// External entities and DTDs are never loaded, entity declarations are
 /// rejected so entity expansion can't be used to exhaust memory, and nesting
@@ -11,7 +11,7 @@ import FoundationXML
 /// ``ReaderError/limitExceeded(_:)``.
 package enum XMLTree {
     /// Parses `data` and returns its root element.
-    package static func parse(_ data: Data, limits: ReaderLimits) throws(ReaderError) -> XMLNode {
+    package static func parse(_ data: Data, limits: ReaderLimits) throws(ReaderError) -> MarkupNode {
         // Publications have no use for their own entities, and declaring
         // them is how "billion laughs" documents expand without bound.
         if data.range(of: Data("<!ENTITY".utf8)) != nil {
@@ -43,8 +43,8 @@ package enum XMLTree {
 /// Builds the tree from parser callbacks. Used by one parser on one thread.
 private final class TreeBuilder: NSObject, XMLParserDelegate {
     private let maxDepth: Int
-    private var stack: [XMLNode] = []
-    private(set) var root: XMLNode?
+    private var stack: [MarkupNode] = []
+    private(set) var root: MarkupNode?
     private(set) var exceededDepth = false
 
     init(maxDepth: Int) {
@@ -65,7 +65,7 @@ private final class TreeBuilder: NSObject, XMLParserDelegate {
         }
         let name = elementName.split(separator: ":").last.map(String.init) ?? elementName
         let namespace = namespaceURI.flatMap { $0.isEmpty ? nil : $0 }
-        stack.append(XMLNode(name: name, namespace: namespace, attributes: attributeDict))
+        stack.append(MarkupNode(name: name, namespace: namespace, attributes: attributeDict))
     }
 
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {

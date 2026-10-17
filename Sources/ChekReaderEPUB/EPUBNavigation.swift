@@ -7,7 +7,7 @@ struct EPUBNavigation {
     var landmarks: [Link] = []
 
     /// Reads the `nav` elements of an EPUB 3 navigation document at `path`.
-    init(navDocument root: XMLNode, path: String) {
+    init(navDocument root: MarkupNode, path: String) {
         for nav in root.descendants(named: "nav") {
             let types = Self.types(of: nav)
             guard let list = nav.firstDescendant(named: "ol") else { continue }
@@ -23,7 +23,7 @@ struct EPUBNavigation {
     }
 
     /// Reads the navigation map and page list of an EPUB 2 NCX at `path`.
-    init(ncx root: XMLNode, path: String) {
+    init(ncx root: MarkupNode, path: String) {
         if let navMap = root.firstElement(named: "navMap") {
             tableOfContents = Self.navPoints(in: navMap, named: "navPoint", base: path)
         }
@@ -32,14 +32,14 @@ struct EPUBNavigation {
         }
     }
 
-    private static func types(of element: XMLNode) -> Set<String> {
+    private static func types(of element: MarkupNode) -> Set<String> {
         // `epub:type`, matched by local name.
         Set((element.attribute("type") ?? "").split(whereSeparator: \.isWhitespace).map(String.init))
     }
 
     /// The links in an `ol`. An entry without its own href, such as a
     /// heading in a `span`, takes the href of its first child.
-    private static func listItems(in list: XMLNode, base: String) -> [Link] {
+    private static func listItems(in list: MarkupNode, base: String) -> [Link] {
         list.elements(named: "li").compactMap { item -> Link? in
             let label = item.firstElement(named: "a") ?? item.firstElement(named: "span")
             let children = item.firstElement(named: "ol").map { listItems(in: $0, base: base) } ?? []
@@ -50,7 +50,7 @@ struct EPUBNavigation {
         }
     }
 
-    private static func navPoints(in element: XMLNode, named name: String, base: String) -> [Link] {
+    private static func navPoints(in element: MarkupNode, named name: String, base: String) -> [Link] {
         element.elements(named: name).compactMap { point -> Link? in
             let children = navPoints(in: point, named: name, base: base)
             let source = point.firstElement(named: "content")?.attribute("src")

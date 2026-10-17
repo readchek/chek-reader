@@ -8,7 +8,7 @@ enum EPUBEncryption {
     ///
     /// - Throws: ``ReaderError/drmProtected(scheme:)`` when any resource is
     ///   encrypted with something other than font obfuscation.
-    static func obfuscatedFonts(in root: XMLNode, paths: Set<String>?) throws(ReaderError) -> [String: Link.FontObfuscation] {
+    static func obfuscatedFonts(in root: MarkupNode, paths: Set<String>?) throws(ReaderError) -> [String: Link.FontObfuscation] {
         var fonts: [String: Link.FontObfuscation] = [:]
         for data in root.descendants(named: "EncryptedData") {
             let algorithm = data.firstElement(named: "EncryptionMethod")?.attribute("Algorithm") ?? ""
