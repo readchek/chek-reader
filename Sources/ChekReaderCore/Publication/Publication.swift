@@ -31,7 +31,7 @@ public struct Publication: Sendable {
     /// Problems that were repaired or skipped while opening.
     public let warnings: [PublicationWarning]
 
-    private let container: any PublicationContainer
+    let container: any PublicationContainer
 
     package init(
         format: ReaderFormat,

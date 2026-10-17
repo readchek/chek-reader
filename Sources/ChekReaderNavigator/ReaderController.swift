@@ -99,7 +99,7 @@ public final class ReaderController {
         }
         guard current == session else { return }
 
-        guard Self.canRender(opened) else {
+        guard NavigatorKind(opened) != nil else {
             return try fail(.notYetImplemented(detected))
         }
         if let location, opened.readingOrderIndex(of: location) == nil {
@@ -233,17 +233,31 @@ public final class ReaderController {
         location = moved
     }
 
-    /// Whether the navigator can show every resource in the reading order.
-    static func canRender(_ publication: Publication) -> Bool {
-        !publication.readingOrder.isEmpty && publication.readingOrder.allSatisfy { link in
-            let type = link.mediaType ?? MediaType.forPath(link.path)
-            return MediaType.isHTML(type) || type == "image/svg+xml" || type.hasPrefix("image/")
-        }
-    }
-
     private func fail(_ error: ReaderError) throws(ReaderError) {
         state = .failed(error)
         throw error
+    }
+}
+
+/// The kind of view that shows a publication.
+enum NavigatorKind: Equatable, Sendable {
+    /// Web pages laid out by the reader script, for HTML and SVG.
+    case web
+    /// PDFKit.
+    case pdf
+
+    /// The kind that can show every resource in `publication`'s reading
+    /// order, or `nil` when none can.
+    init?(_ publication: Publication) {
+        let types = publication.readingOrder.map { $0.mediaType ?? MediaType.forPath($0.path) }
+        guard !types.isEmpty else { return nil }
+        if types == ["application/pdf"] {
+            self = .pdf
+        } else if types.allSatisfy({ MediaType.isHTML($0) || $0.hasPrefix("image/") }) {
+            self = .web
+        } else {
+            return nil
+        }
     }
 }
 

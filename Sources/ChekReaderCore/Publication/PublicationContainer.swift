@@ -9,6 +9,9 @@ package protocol PublicationContainer: Sendable {
     /// The size of the resource at `path` in bytes, when the container
     /// knows it without reading the resource.
     func length(of path: String) async -> Int64?
+    /// How many positions the resource at `path` has, when the container
+    /// knows better than its size, such as the pages of a PDF.
+    func positionCount(of path: String) async -> Int?
 }
 
 extension PublicationContainer {
@@ -19,6 +22,10 @@ extension PublicationContainer {
     }
 
     package func length(of path: String) async -> Int64? {
+        nil
+    }
+
+    package func positionCount(of path: String) async -> Int? {
         nil
     }
 }

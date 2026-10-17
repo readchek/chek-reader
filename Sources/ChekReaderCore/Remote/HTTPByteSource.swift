@@ -46,6 +46,19 @@ struct HTTPByteSource: Sendable {
         }
     }
 
+    /// Downloads the whole file, for formats that can't be read in parts.
+    /// Fails without keeping the body when it's larger than `maxBytes`.
+    static func download(_ url: URL, options: RemoteOptions, maxBytes: Int64) async throws(ReaderError) -> Data {
+        let (data, response) = try await send(URLRequest(url: url), options: options)
+        guard response.statusCode == 200 else {
+            throw status(response.statusCode, url: url)
+        }
+        guard Int64(data.count) <= maxBytes else {
+            throw .limitExceeded(.resourceBytes)
+        }
+        return data
+    }
+
     /// The bytes in `range`, which must be within the file.
     func read(_ range: Range<Int64>) async throws(ReaderError) -> Data {
         guard range.lowerBound >= 0, range.upperBound <= count else {

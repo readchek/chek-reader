@@ -1,9 +1,9 @@
 /// Fixed positions through a publication, like page numbers that don't
 /// change with the screen or text size.
 ///
-/// Each reflowable resource gets one position per 1,024 bytes, and each
-/// fixed-layout resource gets one, as Readium does, so positions match
-/// between apps built on either.
+/// Each reflowable resource gets one position per 1,024 bytes, each
+/// fixed-layout resource gets one, and a PDF gets one per page, as Readium
+/// does, so positions match between apps built on either.
 ///
 /// ```swift
 /// let positions = try await publication.positions()
@@ -68,13 +68,30 @@ public struct PositionList: Hashable, Sendable {
         let start = starts[resource]
         let end = resource + 1 < starts.count ? starts[resource + 1] : locators.count
         let count = end - start
-        let progression = min(max(locator.locations.progression ?? 0, 0), 1)
+        var progression = min(max(locator.locations.progression ?? 0, 0), 1)
+        if locator.locations.progression == nil, let page = Self.page(in: locator.locations.fragments) {
+            // A PDF locator from a table of contents names its page instead.
+            progression = min(Double(page - 1) / Double(max(count, 1)), 1)
+        }
         let offset = min(Int((progression * Double(count)).rounded(.down)), count - 1)
         var located = locator
         located.locations.position = start + offset + 1
         // Within the resource, the total moves smoothly rather than in steps.
         located.locations.totalProgression = (Double(start) + progression * Double(count)) / Double(locators.count)
         return located
+    }
+
+    /// The 1-based page in a `page=N` fragment, which may carry other
+    /// parameters after an `&`.
+    private static func page(in fragments: [String]) -> Int? {
+        for fragment in fragments {
+            for parameter in fragment.split(separator: "&") where parameter.hasPrefix("page=") {
+                if let page = Int(parameter.dropFirst(5)), page > 0 {
+                    return page
+                }
+            }
+        }
+        return nil
     }
 }
 
@@ -94,7 +111,9 @@ extension Publication {
                 ?? Locator(href: link.path, mediaType: link.mediaType ?? MediaType.forPath(link.path))
             let fixed = (link.properties.layout ?? metadata.layout) == .fixed
             var count = 1
-            if !fixed {
+            if let pages = await container.positionCount(of: link.path) {
+                count = max(1, pages)
+            } else if !fixed {
                 let length = try await length(of: link.path)
                 count = Int(min(max(1, (length + PositionList.bytesPerPosition - 1) / PositionList.bytesPerPosition), 1 << 24))
             }

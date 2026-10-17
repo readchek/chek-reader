@@ -17,9 +17,17 @@ public struct NavigatorView: View {
     }
 
     public var body: some View {
-        if controller.state == .ready, controller.publication != nil {
-            WebNavigatorView(controller: controller)
-                .id(controller.session)
+        if controller.state == .ready, let publication = controller.publication {
+            switch NavigatorKind(publication) {
+            case .web:
+                WebNavigatorView(controller: controller)
+                    .id(controller.session)
+            case .pdf:
+                PDFNavigatorView(controller: controller)
+                    .id(controller.session)
+            case nil:
+                EmptyView()
+            }
         }
     }
 }
