@@ -99,10 +99,12 @@ final class ReadiumBench: NSObject {
         var peak = Measure.footprintMB()
         for _ in 0..<turns {
             guard let current = navigator else { break }
-            let hrefBefore = current.currentLocation?.href.string
+            // currentLocation trails a turn by Readium's 0.3 s debounce, so
+            // ask the visible document which chapter it is instead.
+            let hrefBefore = await current.firstVisibleElementLocator()?.href.string
             let (moved, turnMs) = await Measure.time { await current.goForward(options: .none) }
             guard moved else { break }
-            let crossed = current.currentLocation?.href.string != hrefBefore
+            let crossed = await current.firstVisibleElementLocator()?.href.string != hrefBefore
             recorder.add(name, id, crossed ? "pageTurnNewChapter" : "pageTurn", "ms", turnMs, note: "goForward without animation until it returns")
             peak = max(peak, Measure.footprintMB())
         }

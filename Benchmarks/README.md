@@ -48,7 +48,8 @@ Each fixture runs through every reader that can open it, `--runs` times, each ru
 | `renderFirstPage`, `renderPage` | PDFKit | Draw a page to a screen-sized bitmap, the work behind PDFView's first tiles |
 | `pageTurn` | PDFKit | `PDFView.go(to:)` and layout. Tiles render after this, so it's a lower bound |
 | `searchWholeDocument` | PDFKit | `findString` across the whole document |
-| `*.load`, `*.painted` | WebKit floor | Load one chapter from memory in a bare `WKWebView`, and paint it |
+| `*.load`, `*.painted` | WebKit floor | Load one chapter from memory in a new `WKWebView`, and paint it. This includes starting WebKit's content process |
+| `*.warmLoad` | WebKit floor | Load a chapter into a web view that's already running, so no process start-up |
 | `*.paginate`, `*.relayoutFontSize` | WebKit floor | Split the chapter into CSS columns, then lay it out again at 150%, timed inside the page |
 | `*.pageTurnRoundTrip` | WebKit floor | A native call that scrolls one column, waits two frames and replies |
 | `memory*`, `threads*` | All | The app process's footprint growth and thread count |

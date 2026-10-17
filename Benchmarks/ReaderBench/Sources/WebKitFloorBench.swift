@@ -41,11 +41,12 @@ final class WebKitFloorBench: NSObject {
         let sorted = sizes.sorted { $0.bytes < $1.bytes }
         let chapters = [("medianChapter", sorted[sorted.count / 2]), ("largestChapter", sorted[sorted.count - 1])]
 
+        let warmTarget = sorted[sorted.count / 2].href
         for (label, chapter) in chapters {
             for run in 0..<runs {
                 print("BENCH \(Self.name) \(fixture.id) \(label) run \(run + 1)/\(runs)")
                 do {
-                    try await measure(fixture.id, label: label, href: chapter.href, bytes: chapter.bytes, handler: handler)
+                    try await measure(fixture.id, label: label, href: chapter.href, bytes: chapter.bytes, warmHref: warmTarget, handler: handler)
                 } catch {
                     recorder.fail("\(Self.name) \(fixture.id) \(label) run \(run): \(error)")
                 }
@@ -53,7 +54,7 @@ final class WebKitFloorBench: NSObject {
         }
     }
 
-    private func measure(_ id: String, label: String, href: String, bytes: Int, handler: MemorySchemeHandler) async throws {
+    private func measure(_ id: String, label: String, href: String, bytes: Int, warmHref: String, handler: MemorySchemeHandler) async throws {
         let name = Self.name
         let configuration = WKWebViewConfiguration()
         configuration.setURLSchemeHandler(handler, forURLScheme: MemorySchemeHandler.scheme)
@@ -75,6 +76,18 @@ final class WebKitFloorBench: NSObject {
         if await painted.wait(timeout: 5), let paintedAt = painted.firedAt {
             recorder.add(name, id, "\(label).painted", "ms", Measure.milliseconds(from: start, to: paintedAt), note: "load to two animation frames, \(note)")
         }
+
+        // A second load in the same web view reuses its content process, which
+        // separates WebKit's process start-up from loading the chapter itself.
+        finished.reset()
+        let warmStart = ContinuousClock.now
+        webView.load(URLRequest(url: URL(string: "\(MemorySchemeHandler.scheme)://pub/\(warmHref)")!))
+        if await finished.wait(timeout: 30) {
+            recorder.add(name, id, "\(label).warmLoad", "ms", Measure.milliseconds(since: warmStart), note: "the median chapter loaded again into the same web view after \(label)")
+        }
+        finished.reset()
+        webView.load(URLRequest(url: URL(string: "\(MemorySchemeHandler.scheme)://pub/\(href)")!))
+        guard await finished.wait(timeout: 30) else { throw BenchError("reload did not finish") }
 
         let paginate = """
             const t = performance.now();
