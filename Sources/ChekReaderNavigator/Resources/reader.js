@@ -66,8 +66,8 @@ const ChekReader = (() => {
         const margin = Math.max(0, Math.min(options.margin, width / 4));
         const verticalMargin = Math.max(0, Math.min(options.verticalMargin, height / 4));
         const html = root();
-        // WebKit doesn't lay the root element out in columns, so the body
-        // holds them and the root scrolls across the columns that overflow.
+        // The body holds the columns and the root scrolls across the ones
+        // that overflow.
         const container = document.body ?? html;
         setImportant(html, "margin", "0");
         setImportant(html, "padding", "0");
@@ -83,6 +83,10 @@ const ChekReader = (() => {
         setImportant(container, "margin", "0");
         setImportant(container, "padding", `${verticalMargin}px ${margin}px`);
         setImportant(container, "column-count", String(columns));
+        // WebKit treats a single column with an automatic width as no
+        // columns at all and lets the text run down the page, so the width
+        // is given too.
+        setImportant(container, "column-width", `${Math.max(1, (width - 2 * margin * columns) / columns)}px`);
         setImportant(container, "column-gap", `${2 * margin}px`);
         setImportant(container, "column-fill", "auto");
         setImportant(container, "overflow", "visible");
@@ -156,11 +160,19 @@ const ChekReader = (() => {
     }
     /** Diagnostics for the tests: the sizes the page count came from. */
     function metrics() {
+        const scroller = document.scrollingElement ?? root();
+        const body = document.body;
+        const last = body?.lastElementChild?.getBoundingClientRect();
         return {
             scrollExtent: scrollExtent(),
             contentExtent: contentExtent(),
-            scrollLeft: (document.scrollingElement ?? root()).scrollLeft,
+            scrollLeft: scroller.scrollLeft,
             pageWidth,
+            scrollHeight: scroller.scrollHeight,
+            compatMode: document.compatMode,
+            columnCount: body ? getComputedStyle(body).columnCount : null,
+            bodyHeight: body?.getBoundingClientRect().height,
+            last: last ? [last.left, last.top, last.right, last.bottom] : null,
         };
     }
     /** Right-to-left text lays its columns out from the right, with negative scroll offsets. */
