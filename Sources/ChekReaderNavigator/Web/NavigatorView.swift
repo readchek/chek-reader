@@ -38,7 +38,17 @@ private struct WebNavigatorView: View {
     var body: some View {
         ZStack {
             if let navigator {
-                WebView(navigator.page)
+                // Every loaded resource stays in the hierarchy so it keeps its
+                // size and layout; only the one on screen is visible.
+                ForEach(navigator.slots) { slot in
+                    let isCurrent = slot.id == navigator.resourceIndex
+                    WebView(slot.page)
+                        .scrollDisabled(true)
+                        .opacity(isCurrent ? 1 : 0)
+                        .allowsHitTesting(isCurrent)
+                        .accessibilityHidden(!isCurrent)
+                        .zIndex(isCurrent ? 1 : 0)
+                }
             }
         }
         .task {

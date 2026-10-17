@@ -43,3 +43,34 @@ jobs:
           xcodebuild build -project Examples/ChekReaderDemo/ChekReaderDemo.xcodeproj
           -scheme ChekReaderDemo -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO
+
+  script:
+    name: Reader script
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Scripts/Reader
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Scripts/Reader/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Check the committed script matches its source
+        run: |
+          npm run build
+          git diff --exit-code -- ../../Sources/ChekReaderNavigator/Resources \
+            || { echo "::error::reader.js is out of date. Run npm run build in Scripts/Reader and commit it."; exit 1; }
+      - name: Install browsers
+        run: npx playwright install --with-deps webkit chromium
+      - name: Test in WebKit
+        run: npm test
+        env:
+          READER_BROWSER: webkit
+      - name: Test in Chromium
+        run: node --test test/*.test.mjs
+        env:
+          READER_BROWSER: chromium

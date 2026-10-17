@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "esnext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "removeComments": false,
+    "newLine": "lf",
+    "outDir": "../../Sources/ChekReaderNavigator/Resources",
+    "rootDir": "src",
+    "moduleDetection": "legacy"
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}
