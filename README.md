@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. The package structure is in place; the format engines are not, so opening a publication currently reports that its format is not implemented yet.
+> In development. EPUB files parse into a `Publication`, but nothing renders yet, so `ReaderView` still reports that the format is not implemented. Other formats come after EPUB.
 
 ## Overview
 
@@ -104,6 +104,18 @@ Publications can come from several sources:
 .provider(myProvider)                       // resources the app supplies, such as decrypted ones
 .pages(myPageSource)                        // page images streamed one at a time
 ```
+
+To read a publication's structure without showing it, for example to import a library, open it directly:
+
+```swift
+let publication = try await Publication.open(.file(bookURL))
+publication.metadata.title             // the title, when the book has one
+publication.readingOrder               // chapters, in order
+publication.tableOfContents            // nested entries with titles and hrefs
+let html = try await publication.data(at: publication.readingOrder[0].href)
+```
+
+Damaged but readable files still open, and what was repaired or skipped is listed in `publication.warnings`. Every archive and XML document is checked against `ReaderLimits` while it's read, and DRM-protected books fail with `ReaderError.drmProtected`.
 
 Reading positions are `Locator` values. Their JSON matches the Readium Locator model, so they can be stored and synced as-is.
 

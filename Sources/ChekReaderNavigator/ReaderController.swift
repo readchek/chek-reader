@@ -43,7 +43,7 @@ public final class ReaderController {
 
         let detected: ReaderFormat?
         do {
-            detected = try await Self.detectFormat(of: source)
+            detected = try await FormatSniffer.format(of: source)
         } catch {
             guard current == session else { return }
             return try fail(error)
@@ -51,7 +51,7 @@ public final class ReaderController {
         guard current == session else { return }
 
         guard let detected else {
-            return try fail(.unsupportedFormat(fileName: Self.fileName(of: source)))
+            return try fail(.unsupportedFormat(fileName: source.fileName))
         }
         format = detected
         do {
@@ -59,7 +59,8 @@ public final class ReaderController {
         } catch {
             return try fail(error)
         }
-        // Format engines land milestone by milestone.
+        // Parsing works for some formats, but no format renders yet, so the
+        // controller can't reach `ready`. Rendering lands format by format.
         try fail(.notYetImplemented(detected))
     }
 
@@ -74,36 +75,5 @@ public final class ReaderController {
     private func fail(_ error: ReaderError) throws(ReaderError) {
         state = .failed(error)
         throw error
-    }
-
-    nonisolated private static func detectFormat(of source: PublicationSource) async throws(ReaderError) -> ReaderFormat? {
-        switch source {
-        case .file(let url):
-            let prefix: Data
-            do {
-                let handle = try FileHandle(forReadingFrom: url)
-                defer { try? handle.close() }
-                prefix = try handle.read(upToCount: FormatSniffer.prefixLength) ?? Data()
-            } catch {
-                throw .malformed(reason: "The file could not be read.")
-            }
-            return FormatSniffer.format(of: prefix, fileName: url.lastPathComponent)
-        case .data(let data, let fileName):
-            return FormatSniffer.format(of: data, fileName: fileName)
-        case .remote(let url, _):
-            return FormatSniffer.format(forFileName: url.lastPathComponent)
-        case .provider(let provider):
-            return provider.format
-        case .pages:
-            return .cbz
-        }
-    }
-
-    nonisolated private static func fileName(of source: PublicationSource) -> String? {
-        switch source {
-        case .file(let url), .remote(let url, _): url.lastPathComponent
-        case .data(_, let fileName): fileName
-        case .provider, .pages: nil
-        }
     }
 }

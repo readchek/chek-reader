@@ -19,12 +19,21 @@ public enum ReaderError: Error, Hashable, Sendable {
     case network(reason: String)
     /// The format's product is linked but does not open publications yet.
     case notYetImplemented(ReaderFormat)
+    /// The task opening or reading the publication was cancelled.
+    case cancelled
 
     /// Whether repeating the same operation might succeed.
     public var isRetryable: Bool {
         switch self {
         case .network: true
         default: false
+        }
+    }
+
+    /// Throws ``cancelled`` when the current task is cancelled.
+    package static func checkCancellation() throws(ReaderError) {
+        if Task.isCancelled {
+            throw .cancelled
         }
     }
 }
@@ -50,6 +59,8 @@ extension ReaderError: LocalizedError {
             "The publication could not be downloaded: \(reason)"
         case .notYetImplemented(let format):
             "Opening \(format.name) publications is not implemented yet."
+        case .cancelled:
+            "Opening the publication was cancelled."
         }
     }
 
