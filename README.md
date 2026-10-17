@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB publications open in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. Other formats come after EPUB.
+> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. Other formats come after EPUB.
 
 ## Overview
 
@@ -101,6 +101,7 @@ Publications can come from several sources:
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     return request
 })
+.remote(url, RemoteOptions(load: myLoader)) // or send requests through your own session
 .provider(myProvider)                       // resources the app supplies, such as decrypted ones
 .pages(myPageSource)                        // page images streamed one at a time
 ```

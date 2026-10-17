@@ -28,13 +28,21 @@ public struct RemoteOptions: Sendable {
     /// A stable identifier for the publication, used for positions and the
     /// cache. Defaults to the URL.
     public var identifier: String?
+    /// Sends each request and returns the response. Defaults to
+    /// `URLSession.shared`; supply your own to use another session or to
+    /// serve requests in tests.
+    public var load: @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     public init(
         identifier: String? = nil,
-        authorize: @escaping @Sendable (URLRequest) async throws -> URLRequest = { $0 }
+        authorize: @escaping @Sendable (URLRequest) async throws -> URLRequest = { $0 },
+        load: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = { request in
+            try await URLSession.shared.data(for: request)
+        }
     ) {
         self.identifier = identifier
         self.authorize = authorize
+        self.load = load
     }
 }
 
