@@ -77,7 +77,9 @@ const ChekReader = (() => {
         setImportant(html, "column-count", String(columns));
         setImportant(html, "column-gap", `${2 * margin}px`);
         setImportant(html, "column-fill", "auto");
-        setImportant(html, "overflow", "hidden");
+        // Not hidden: WebKit stops reporting the columns' scroll width when
+        // the root clips. The native view stops the reader panning instead.
+        setImportant(html, "overflow", "visible");
         installMediaStyle(height - 2 * verticalMargin);
         pageWidth = width;
     }
@@ -122,8 +124,38 @@ const ChekReader = (() => {
         }
         // The last page may hold fewer columns, so round up. One pixel of
         // slack absorbs subpixel widths that would otherwise add a blank page.
-        pageCount = Math.max(1, Math.ceil((root().scrollWidth - 1) / pageWidth));
+        pageCount = Math.max(1, Math.ceil((Math.max(scrollExtent(), contentExtent()) - 1) / pageWidth));
         page = Math.min(page, pageCount - 1);
+    }
+    function scrollExtent() {
+        return (document.scrollingElement ?? root()).scrollWidth;
+    }
+    /**
+     * How far the content reaches from the start of the first page, in the
+     * direction pages advance, measured from the content itself so it
+     * doesn't depend on how the engine reports scroll sizes.
+     */
+    function contentExtent() {
+        const body = document.body;
+        if (!body) {
+            return 0;
+        }
+        const range = document.createRange();
+        range.selectNodeContents(body);
+        const rect = range.getBoundingClientRect();
+        const scroller = document.scrollingElement ?? root();
+        return isRightToLeft()
+            ? window.innerWidth - rect.left - scroller.scrollLeft
+            : rect.right + scroller.scrollLeft;
+    }
+    /** Diagnostics for the tests: the sizes the page count came from. */
+    function metrics() {
+        return {
+            scrollExtent: scrollExtent(),
+            contentExtent: contentExtent(),
+            scrollLeft: (document.scrollingElement ?? root()).scrollLeft,
+            pageWidth,
+        };
     }
     /** Right-to-left text lays its columns out from the right, with negative scroll offsets. */
     function isRightToLeft() {
@@ -305,6 +337,6 @@ const ChekReader = (() => {
             post({ type: "wheel", direction: wheelTotal > 0 ? "next" : "previous" });
         }
     }, { passive: false });
-    return { paginate, relayout, goToPage, goToLastPage, goToProgression, goToFragment, state };
+    return { paginate, relayout, goToPage, goToLastPage, goToProgression, goToFragment, state, metrics };
 })();
 globalThis.chekReader = ChekReader;
