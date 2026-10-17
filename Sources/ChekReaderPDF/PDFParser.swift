@@ -65,7 +65,7 @@ enum PDFParser {
 
     private static func links(under outline: PDFOutline, in document: PDFDocument, depth: Int) -> [Link] {
         guard depth < maxOutlineDepth else { return [] }
-        var links: [Link] = []
+        var entries: [Link] = []
         for index in 0..<outline.numberOfChildren {
             guard let child = outline.child(at: index) else { continue }
             let children = links(under: child, in: document, depth: depth + 1)
@@ -75,9 +75,9 @@ enum PDFParser {
             // An entry without a destination of its own goes where its first child does.
             let href = page.map { "\(PDFModule.href)#page=\($0 + 1)" } ?? children.first?.href
             guard let href else { continue }
-            links.append(Link(href: href, mediaType: "application/pdf", title: child.label?.nilIfEmpty, children: children))
+            entries.append(Link(href: href, mediaType: "application/pdf", title: child.label?.nilIfEmpty, children: children))
         }
-        return links
+        return entries
     }
 }
 
