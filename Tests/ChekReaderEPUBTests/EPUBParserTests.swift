@@ -213,10 +213,17 @@ import Testing
         #expect(css == Data("body { margin: 0 }".utf8))
     }
 
-    @Test func remoteSourcesAreNotImplementedYet() async {
-        await #expect(throws: ReaderError.notYetImplemented(.epub)) {
-            try await EPUBModule.open(.remote(URL(string: "https://example.com/book.epub")!), format: .epub, limits: .default)
-        }
+    @Test func opensFromAURLReadingOnlyWhatItNeeds() async throws {
+        let server = RangeServer(EPUBFixture.book(EPUBFixture.epub3))
+        let publication = try await EPUBModule.open(.remote(server.url, server.options()), format: .epub, limits: .default)
+        #expect(publication.metadata.title == "The Lighthouse")
+        let opened = server.received.count
+        // The directory, then the container and package documents and the
+        // navigation document, each fetched on its own.
+        #expect(opened <= 6)
+        let css = try await publication.data(at: "OEBPS/styles/book.css")
+        #expect(css == Data("body { margin: 0 }".utf8))
+        #expect(server.received.count == opened + 1)
     }
 
     @Test func honorsCancellation() async {

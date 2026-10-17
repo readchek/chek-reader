@@ -10,8 +10,9 @@ public import ChekReaderCore
 /// let publication = try await Publication.open(.file(url))
 /// ```
 ///
-/// Local files, in-memory data and ``ResourceProvider`` sources open today.
-/// A provider is trusted to return decrypted resources, so its publications
+/// Local files, in-memory data, HTTP URLs and ``ResourceProvider`` sources
+/// open. From a URL, only the parts of the book being read are downloaded,
+/// using range requests. A provider is trusted to return decrypted resources, so its publications
 /// skip the DRM check.
 public enum EPUBModule: ReaderFormatModule {
     public static let formats: [ReaderFormat] = [.epub]
@@ -27,8 +28,8 @@ public enum EPUBModule: ReaderFormatModule {
         case .provider(let provider):
             container = ProviderContainer(provider: provider, limits: limits)
             checksEncryption = false
-        case .remote:
-            throw .notYetImplemented(.epub)
+        case .remote(let url, let options):
+            container = try await RemoteZIPArchive.open(url, options: options, limits: limits)
         case .pages:
             throw .unsupportedFormat(fileName: nil)
         }

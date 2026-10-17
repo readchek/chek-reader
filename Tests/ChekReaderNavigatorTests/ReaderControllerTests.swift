@@ -23,12 +23,13 @@ import Testing
         }
     }
 
-    @Test func remoteEPUBIsNotImplementedYet() async {
+    @Test func opensARemoteEPUB() async throws {
         ReaderFormats.register(EPUBModule.self)
+        let server = RangeServer(EPUBFixture.book(EPUBFixture.epub3))
         let controller = ReaderController()
-        await #expect(throws: ReaderError.notYetImplemented(.epub)) {
-            try await controller.open(.remote(URL(string: "https://example.com/book.epub")!))
-        }
+        try await controller.open(.remote(server.url, server.options()))
+        #expect(controller.state == .ready)
+        #expect(controller.location?.href == "OEBPS/Text/chapter 1.xhtml")
     }
 
     @Test func opensAnEPUBAtItsStart() async throws {

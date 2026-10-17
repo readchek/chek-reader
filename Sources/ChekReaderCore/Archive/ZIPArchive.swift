@@ -2,7 +2,8 @@ import Foundation
 
 /// A ZIP archive read from memory or a memory-mapped file.
 ///
-/// Opening reads only the central directory. Entries are decompressed and
+/// ``RemoteZIPArchive`` reads the same format over HTTP ranges, sharing the
+/// parsing here. Opening reads only the central directory. Entries are decompressed and
 /// checked against their CRC-32 when they're read. Every size, count and
 /// offset in the archive is checked against the data and ``ReaderLimits``
 /// before it's used.
@@ -43,7 +44,8 @@ package struct ZIPArchive: PublicationContainer {
     package init(data: Data, limits: ReaderLimits) throws(ReaderError) {
         bytes = ByteReader(data)
         self.limits = limits
-        entries = try Self.readCentralDirectory(bytes, limits: limits)
+        let location = try Self.locateDirectory(in: bytes, limits: limits)
+        entries = try Self.readDirectory(bytes, at: location, limits: limits)
         paths = Set(entries.keys)
     }
 
@@ -65,6 +67,18 @@ package struct ZIPArchive: PublicationContainer {
 
     /// The decompressed bytes of `entry`.
     package func read(_ entry: Entry) throws(ReaderError) -> Data {
+        try Self.checkReadable(entry, limits: limits)
+        let header = Int(entry.localHeaderOffset)
+        let start = try Self.dataStart(ofEntryAt: header, in: bytes, path: entry.path)
+        let stored = try bytes.data(at: start, count: Int(entry.compressedSize))
+        return try Self.decode(entry, stored: stored)
+    }
+
+    // MARK: - Entries
+
+    /// Rejects entries that can't or mustn't be read, before any of their
+    /// data is read.
+    static func checkReadable(_ entry: Entry, limits: ReaderLimits) throws(ReaderError) {
         if entry.isEncrypted {
             throw .drmProtected(scheme: "ZIP encryption")
         }
@@ -77,15 +91,24 @@ package struct ZIPArchive: PublicationContainer {
            Double(entry.uncompressedSize) > Double(max(entry.compressedSize, 1)) * limits.maxCompressionRatio {
             throw .limitExceeded(.compressionRatio)
         }
+    }
 
-        let header = Int(entry.localHeaderOffset)
+    /// The size of a local file header before its variable-length fields.
+    static let localHeaderSize = 30
+
+    /// Where an entry's stored data starts, read from its local header,
+    /// whose name and extra fields can differ in length from the directory's.
+    static func dataStart(ofEntryAt header: Int, in bytes: ByteReader, path: String) throws(ReaderError) -> Int {
         guard try bytes.uint32(at: header) == 0x0403_4B50 else {
-            throw .malformed(reason: "The local header of \(entry.path) is missing.")
+            throw .malformed(reason: "The local header of \(path) is missing.")
         }
         let nameLength = try Int(bytes.uint16(at: header + 26))
         let extraLength = try Int(bytes.uint16(at: header + 28))
-        let stored = try bytes.data(at: header + 30 + nameLength + extraLength, count: Int(entry.compressedSize))
+        return header + localHeaderSize + nameLength + extraLength
+    }
 
+    /// Decompresses an entry's stored bytes and checks them against its CRC-32.
+    static func decode(_ entry: Entry, stored: Data) throws(ReaderError) -> Data {
         let content: Data
         switch entry.method {
         case 0:
@@ -111,7 +134,21 @@ package struct ZIPArchive: PublicationContainer {
     private static let zip64EndOfCentralDirectory: UInt32 = 0x0606_4B50
     private static let centralFileHeader: UInt32 = 0x0201_4B50
 
-    private static func readCentralDirectory(_ bytes: ByteReader, limits: ReaderLimits) throws(ReaderError) -> [String: Entry] {
+    /// Where the central directory is and how many entries it holds.
+    struct DirectoryLocation: Sendable {
+        var offset: Int64
+        var size: Int64
+        var count: Int64
+    }
+
+    /// The bytes from the end of central directory record's earliest
+    /// possible start to the end of the file, including room for a ZIP64
+    /// locator and record before it.
+    static let tailLength: Int64 = 22 + 0xFFFF + 20 + 56
+
+    /// Finds the central directory from the end of the archive. `bytes`
+    /// must reach the end of the file, but may start anywhere.
+    static func locateDirectory(in bytes: ByteReader, limits: ReaderLimits) throws(ReaderError) -> DirectoryLocation {
         let end = try findEndOfCentralDirectory(bytes)
         var diskNumber = try Int(bytes.uint16(at: end + 4))
         var directoryDisk = try Int(bytes.uint16(at: end + 6))
@@ -121,7 +158,7 @@ package struct ZIPArchive: PublicationContainer {
 
         if entryCount == 0xFFFF || directorySize == 0xFFFF_FFFF || directoryOffset == 0xFFFF_FFFF {
             let locator = end - 20
-            if locator >= 0, try bytes.uint32(at: locator) == zip64Locator {
+            if bytes.contains(locator, 4), try bytes.uint32(at: locator) == zip64Locator {
                 let record = try Int(bytes.int64(at: locator + 8))
                 guard try bytes.uint32(at: record) == zip64EndOfCentralDirectory else {
                     throw .malformed(reason: "The archive's ZIP64 directory record is missing.")
@@ -139,17 +176,25 @@ package struct ZIPArchive: PublicationContainer {
         guard entryCount <= Int64(limits.maxArchiveEntries) else {
             throw .limitExceeded(.archiveEntries)
         }
+        // Compared without adding, so sizes near Int64.max can't overflow.
         guard directoryOffset >= 0, directorySize >= 0,
-              directoryOffset + directorySize <= Int64(end)
+              directoryOffset <= Int64(end), directorySize <= Int64(end) - directoryOffset
         else {
             throw .malformed(reason: "The archive's central directory is outside the file.")
         }
+        return DirectoryLocation(offset: directoryOffset, size: directorySize, count: entryCount)
+    }
 
+    /// Reads every entry in the central directory. `bytes` must hold the
+    /// whole directory.
+    static func readDirectory(_ bytes: ByteReader, at location: DirectoryLocation, limits: ReaderLimits) throws(ReaderError) -> [String: Entry] {
+        let directoryOffset = location.offset
+        let entryCount = location.count
         var entries: [String: Entry] = [:]
         entries.reserveCapacity(Int(entryCount))
         var totalSize: Int64 = 0
         var position = Int(directoryOffset)
-        let directoryEnd = Int(directoryOffset + directorySize)
+        let directoryEnd = Int(directoryOffset + location.size)
 
         for _ in 0..<entryCount {
             guard position + 46 <= directoryEnd, try bytes.uint32(at: position) == centralFileHeader else {
@@ -218,11 +263,12 @@ package struct ZIPArchive: PublicationContainer {
         guard bytes.count >= recordSize else {
             throw .malformed(reason: "The file is too short to be a ZIP archive.")
         }
-        let lowest = max(0, bytes.count - recordSize - 0xFFFF)
-        var offset = bytes.count - recordSize
+        let fileEnd = bytes.base + bytes.count
+        let lowest = max(bytes.base, fileEnd - recordSize - 0xFFFF)
+        var offset = fileEnd - recordSize
         while offset >= lowest {
             if try bytes.uint32(at: offset) == endOfCentralDirectory,
-               try offset + recordSize + Int(bytes.uint16(at: offset + 20)) <= bytes.count {
+               try offset + recordSize + Int(bytes.uint16(at: offset + 20)) <= fileEnd {
                 return offset
             }
             offset -= 1
@@ -299,31 +345,40 @@ package struct ZIPArchive: PublicationContainer {
     }
 }
 
-/// Bounds-checked little-endian reads from `Data`, by offset from its start.
-private struct ByteReader: Sendable {
+/// Bounds-checked little-endian reads from part of an archive, by offset
+/// from the start of the archive.
+struct ByteReader: Sendable {
     let data: Data
+    /// The archive offset of the first byte of `data`.
+    let base: Int
 
-    init(_ data: Data) {
+    init(_ data: Data, base: Int = 0) {
         self.data = data
+        self.base = base
     }
 
     var count: Int { data.count }
 
-    private func check(_ offset: Int, _ length: Int) throws(ReaderError) {
-        guard offset >= 0, length >= 0, offset <= data.count - length else {
+    /// Whether `offset..<offset + length` is within the bytes held.
+    func contains(_ offset: Int, _ length: Int) -> Bool {
+        offset >= base && length >= 0 && offset - base <= data.count - length
+    }
+
+    /// Checks the range and returns where it starts within `data`.
+    private func check(_ offset: Int, _ length: Int) throws(ReaderError) -> Int {
+        guard contains(offset, length) else {
             throw .malformed(reason: "The archive points past the end of the file. It may be truncated.")
         }
+        return data.startIndex + offset - base
     }
 
     func uint16(at offset: Int) throws(ReaderError) -> UInt16 {
-        try check(offset, 2)
-        let base = data.startIndex + offset
+        let base = try check(offset, 2)
         return UInt16(data[base]) | UInt16(data[base + 1]) << 8
     }
 
     func uint32(at offset: Int) throws(ReaderError) -> UInt32 {
-        try check(offset, 4)
-        let base = data.startIndex + offset
+        let base = try check(offset, 4)
         var value: UInt32 = 0
         for index in 0..<4 {
             value |= UInt32(data[base + index]) << (8 * index)
@@ -333,8 +388,7 @@ private struct ByteReader: Sendable {
 
     /// A 64-bit value, rejected when it doesn't fit in `Int64`.
     func int64(at offset: Int) throws(ReaderError) -> Int64 {
-        try check(offset, 8)
-        let base = data.startIndex + offset
+        let base = try check(offset, 8)
         var value: UInt64 = 0
         for index in 0..<8 {
             value |= UInt64(data[base + index]) << (8 * index)
@@ -347,8 +401,7 @@ private struct ByteReader: Sendable {
 
     /// A copy of `count` bytes, starting from 0 so callers can index it directly.
     func data(at offset: Int, count: Int) throws(ReaderError) -> Data {
-        try check(offset, count)
-        let base = data.startIndex + offset
+        let base = try check(offset, count)
         return Data(data[base..<base + count])
     }
 }
