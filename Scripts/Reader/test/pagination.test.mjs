@@ -87,7 +87,7 @@ test("keeps the reading position when the viewport changes", async () => {
 test("uses two columns on a wide screen when asked to choose", async () => {
     const page = await open({ width: 1200, height: 800 });
     const auto = await page.evaluate((options) => chekReader.paginate({ ...options, columns: 0 }), options);
-    const columns = await page.evaluate(() => getComputedStyle(document.documentElement).columnCount);
+    const columns = await page.evaluate(() => getComputedStyle(document.body).columnCount);
     assert.equal(columns, "2");
     assert.ok(auto.pageCount >= 1);
     await page.close();
