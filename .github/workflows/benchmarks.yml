@@ -1,0 +1,58 @@
+name: Benchmarks
+
+# Runs the reader comparison in the iOS Simulator. It isn't a required
+# check: simulator timings vary between runner machines, so results are for
+# comparing readers within one run and for spotting regressions.
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Repetitions per fixture and reader
+        default: "5"
+      device:
+        description: Simulator name, such as iPhone 17 Pro (default is the first iPhone on the newest runtime)
+        default: ""
+  push:
+    paths:
+      - "Benchmarks/**"
+      - ".github/workflows/benchmarks.yml"
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: Reader comparison in the iOS Simulator
+    runs-on: xcode-27
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Restore corpus
+        uses: actions/cache@v4
+        with:
+          path: Benchmarks/ReaderBench/Corpus
+          key: corpus-${{ hashFiles('Benchmarks/corpus.json', 'Benchmarks/Scripts/corpus.swift') }}
+      - name: Run benchmarks
+        env:
+          RUNS: ${{ inputs.runs || '5' }}
+          DEVICE: ${{ inputs.device }}
+        run: |
+          args=(--runs "$RUNS" --out Benchmarks/Results/ci)
+          if [ -n "$DEVICE" ]; then args+=(--device "$DEVICE"); fi
+          swift Benchmarks/Scripts/run.swift "${args[@]}"
+      - name: Publish summary
+        if: always()
+        run: cat Benchmarks/Results/ci/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: Benchmarks/Results/ci
+          if-no-files-found: ignore
