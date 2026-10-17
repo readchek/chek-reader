@@ -9,9 +9,9 @@ Nothing in the package depends on this folder. The benchmark app links Readium o
 | Path | Contents |
 | --- | --- |
 | `corpus.json` | The fixtures, with their source, license and checksum. Files are fetched or generated at run time, never committed |
-| `Scripts/corpus.swift` | Downloads the public-domain fixtures and draws the synthetic PDF and comic |
+| `Scripts/corpus.swift` | Downloads the public-domain fixtures and draws the synthetic PDF and comic, into `.corpus` |
 | `Scripts/run.swift` | Builds the app, runs it in the iOS Simulator and writes `results.json` and `summary.md` |
-| `Scripts/summarize.swift` | Turns a `results.json` into a Markdown table |
+| `Scripts/summarize.swift` | Merges one or more `results.json` files and writes a Markdown table |
 | `ReaderBench/` | The benchmark host app, generated with XcodeGen |
 | `Results/` | Published runs, one folder per run |
 
@@ -26,9 +26,11 @@ swift Benchmarks/Scripts/run.swift --device "iPad Pro 13-inch (M5)" --runs 10
 swift Benchmarks/Scripts/run.swift --only war-and-peace --turns 60
 ```
 
-Results land in `Benchmarks/Results/latest`. The `Benchmarks` workflow runs the same script on GitHub's Xcode 27 runner whenever this folder changes, and on demand from the Actions tab. Its summary appears on the run page, and the JSON is attached as an artifact.
+Results land in `Benchmarks/Results/latest`. The script boots the simulator while the app builds, and copies the corpus into the app's Documents folder after installing, so the large files never go through the app bundle.
 
-To run on a physical device, open the generated `ReaderBench.xcodeproj`, choose your team, and run the `ReaderBench` scheme. The app prints `BENCH_RESULTS` with the path of its results when it's done.
+The `Benchmarks` workflow runs the same script on GitHub's Xcode 27 runners whenever this folder changes, and on demand from the Actions tab. Each fixture gets its own job on its own machine, so they run in parallel without competing for one processor, and the build is cached between runs. A last job merges the results; its summary appears on the run page and in the log. Because fixtures run on different machines, compare readers within a fixture, not across fixtures.
+
+To run on a physical device, write the corpus where the app bundles it with `swift Benchmarks/Scripts/corpus.swift Benchmarks/ReaderBench/Corpus`, then open the generated `ReaderBench.xcodeproj`, choose your team, and run the `ReaderBench` scheme. The app prints `BENCH_RESULTS` with the path of its results when it's done.
 
 ## What it measures
 

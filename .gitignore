@@ -12,3 +12,4 @@ DerivedData/
 /Benchmarks/ReaderBench/Corpus
 /Benchmarks/Results/latest
 /Benchmarks/Results/ci
+/Benchmarks/.corpus

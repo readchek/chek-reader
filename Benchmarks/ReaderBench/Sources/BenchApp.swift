@@ -53,12 +53,16 @@ struct BenchRunner {
         let turns = defaults.integer(forKey: "turns") > 0 ? defaults.integer(forKey: "turns") : 30
         let only = defaults.string(forKey: "only").map { Set($0.split(separator: ",").map(String.init)) }
 
+        // run.swift copies the corpus into Documents after installing, which
+        // keeps the app small and quick to install. Device builds bundle it.
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let candidates = [documents.appendingPathComponent("Corpus"), Bundle.main.url(forResource: "Corpus", withExtension: nil)]
         guard
-            let corpus = Bundle.main.url(forResource: "Corpus", withExtension: nil),
+            let corpus = candidates.compactMap({ $0 }).first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("manifest.json").path) }),
             let data = try? Data(contentsOf: corpus.appendingPathComponent("manifest.json")),
             let fixtures = try? JSONDecoder().decode([Fixture].self, from: data)
         else {
-            print("BENCH failure: Corpus/manifest.json is missing. Run Benchmarks/Scripts/corpus.swift before building.")
+            print("BENCH failure: no Corpus/manifest.json in Documents or the app bundle. Run Benchmarks/Scripts/corpus.swift first.")
             return
         }
 

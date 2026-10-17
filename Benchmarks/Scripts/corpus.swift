@@ -1,10 +1,11 @@
 // Fetches and generates the benchmark corpus described in Benchmarks/corpus.json.
 //
-//   swift Benchmarks/Scripts/corpus.swift [output directory]
+//   swift Benchmarks/Scripts/corpus.swift [output directory] [--only id,id]
 //
-// The output directory defaults to Benchmarks/ReaderBench/Corpus, which the
-// benchmark app bundles. Alongside the files it writes manifest.json, which
-// the app reads to find each fixture. Requires macOS, because the synthetic
+// The output directory defaults to Benchmarks/.corpus, which run.swift copies
+// into the simulator app's Documents folder. To run on a device, write it to
+// Benchmarks/ReaderBench/Corpus instead, and the app bundles it. Alongside the
+// files it writes manifest.json, which the app reads to find each fixture. Requires macOS, because the synthetic
 // fixtures are drawn with Core Graphics and Core Text.
 
 import CoreGraphics
@@ -207,15 +208,19 @@ func download(_ remote: URL, to url: URL, id: String) {
 
 let scriptDirectory = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
 let benchmarks = scriptDirectory.deletingLastPathComponent()
-let output = CommandLine.arguments.count > 1
-    ? URL(fileURLWithPath: CommandLine.arguments[1])
-    : benchmarks.appendingPathComponent("ReaderBench/Corpus")
+var arguments = Array(CommandLine.arguments.dropFirst())
+var only: Set<String>?
+if let flag = arguments.firstIndex(of: "--only"), flag + 1 < arguments.count {
+    only = Set(arguments[flag + 1].split(separator: ",").map(String.init))
+    arguments.removeSubrange(flag...(flag + 1))
+}
+let output = arguments.first.map { URL(fileURLWithPath: $0) } ?? benchmarks.appendingPathComponent(".corpus")
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
 let corpus = try JSONDecoder().decode(Corpus.self, from: Data(contentsOf: benchmarks.appendingPathComponent("corpus.json")))
 var manifest: [ManifestEntry] = []
 
-for fixture in corpus.fixtures {
+for fixture in corpus.fixtures where only?.contains(fixture.id) ?? true {
     let file = "\(fixture.id).\(fixture.kind)"
     let url = output.appendingPathComponent(file)
     let exists = FileManager.default.fileExists(atPath: url.path)

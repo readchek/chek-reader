@@ -72,16 +72,14 @@ let derivedData = benchmarks.appendingPathComponent(".build")
 let out = URL(fileURLWithPath: options["out"] ?? benchmarks.appendingPathComponent("Results/latest").path)
 let bundleID = "page.chek.bench.ReaderBench"
 
-// 1. Corpus and project.
-run(["swift", benchmarks.appendingPathComponent("Scripts/corpus.swift").path])
-run(["xcodegen", "generate", "--spec", app.appendingPathComponent("project.yml").path])
-
-// 2. Pick a simulator: the named one, or the first iPhone on the newest iOS runtime.
+// 1. Pick a simulator, the named one or the first iPhone on the newest iOS
+// runtime, and start booting it so it finishes while the app builds.
 struct DeviceList: Decodable {
     struct Device: Decodable {
         var name: String
         var udid: String
         var isAvailable: Bool
+        var state: String
     }
 
     var devices: [String: [Device]]
@@ -101,6 +99,17 @@ guard
     }).first
 else { fail("no available simulator\(wanted.map { " named \($0)" } ?? "")") }
 print("Using \(device.name) (\(device.udid))")
+if device.state != "Booted" {
+    run(["xcrun", "simctl", "boot", device.udid])
+}
+
+// 2. Corpus and project. The corpus stays out of the app bundle, so the
+// app installs quickly; it's copied into the app's Documents below.
+let corpusDirectory = benchmarks.appendingPathComponent(".corpus")
+var corpusArguments = ["swift", benchmarks.appendingPathComponent("Scripts/corpus.swift").path, corpusDirectory.path]
+if let only = options["only"] { corpusArguments += ["--only", only] }
+run(corpusArguments)
+run(["xcodegen", "generate", "--spec", app.appendingPathComponent("project.yml").path])
 
 // 3. Build.
 run([
@@ -114,13 +123,16 @@ run([
 ])
 let product = derivedData.appendingPathComponent("Build/Products/Release-iphonesimulator/ReaderBench.app")
 
-// 4. Boot, install and run. The app exits by itself when it's done.
-let state = run(["xcrun", "simctl", "list", "devices", device.udid], capture: true)
-if !state.contains("(Booted)") {
-    run(["xcrun", "simctl", "boot", device.udid])
-}
+// 4. Install, hand over the corpus and run. The app exits when it's done.
 run(["xcrun", "simctl", "bootstatus", device.udid, "-b"])
 run(["xcrun", "simctl", "install", device.udid, product.path])
+let container = run(["xcrun", "simctl", "get_app_container", device.udid, bundleID, "data"], capture: true)
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+let installedCorpus = URL(fileURLWithPath: container).appendingPathComponent("Documents/Corpus")
+try? FileManager.default.removeItem(at: installedCorpus)
+try FileManager.default.createDirectory(at: installedCorpus.deletingLastPathComponent(), withIntermediateDirectories: true)
+// On APFS this is a clone, so even the large comic copies instantly.
+try FileManager.default.copyItem(at: corpusDirectory, to: installedCorpus)
 
 var launch = ["xcrun", "simctl", "launch", "--console", "--terminate-running-process", device.udid, bundleID]
 for key in ["runs", "turns", "only"] {
@@ -137,5 +149,5 @@ try FileManager.default.createDirectory(at: out, withIntermediateDirectories: tr
 let results = out.appendingPathComponent("results.json")
 try? FileManager.default.removeItem(at: results)
 try FileManager.default.copyItem(at: URL(fileURLWithPath: resultsPath), to: results)
-run(["swift", benchmarks.appendingPathComponent("Scripts/summarize.swift").path, results.path, out.appendingPathComponent("summary.md").path])
+run(["swift", benchmarks.appendingPathComponent("Scripts/summarize.swift").path, "--out", out.appendingPathComponent("summary.md").path, results.path])
 print("Results in \(out.path)")

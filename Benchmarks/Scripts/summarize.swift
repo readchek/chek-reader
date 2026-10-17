@@ -1,13 +1,15 @@
-// Turns a ReaderBench results.json into a Markdown summary.
+// Turns one or more ReaderBench results.json files into a Markdown summary.
 //
-//   swift Benchmarks/Scripts/summarize.swift results.json [summary.md]
+//   swift Benchmarks/Scripts/summarize.swift [--out summary.md] [--merged results.json] results.json...
 //
-// Prints to standard output when no output path is given.
+// Several files, such as one per fixture from parallel CI jobs, are merged
+// first; --merged writes that combined file. The summary goes to standard
+// output when --out is missing.
 
 import Foundation
 
-struct Report: Decodable {
-    struct Environment: Decodable {
+struct Report: Codable {
+    struct Environment: Codable {
         var device: String
         var system: String
         var screen: String
@@ -16,16 +18,18 @@ struct Report: Decodable {
         var startedAt: String
     }
 
-    struct Fixture: Decodable {
+    struct Fixture: Codable {
         var id: String
         var kind: String
         var role: String
+        var file: String
         var bytes: Int
         var sha256: String
         var source: String
+        var license: String
     }
 
-    struct Series: Decodable {
+    struct Series: Codable {
         var reader: String
         var fixture: String
         var metric: String
@@ -55,12 +59,34 @@ func format(_ value: Double, _ unit: String) -> String {
     }
 }
 
-let arguments = CommandLine.arguments
-guard arguments.count >= 2 else {
-    FileHandle.standardError.write(Data("usage: summarize.swift results.json [summary.md]\n".utf8))
+var outPath: String?
+var mergedPath: String?
+var inputs: [String] = []
+var remaining = CommandLine.arguments.dropFirst()
+while let argument = remaining.popFirst() {
+    switch argument {
+    case "--out": outPath = remaining.popFirst()
+    case "--merged": mergedPath = remaining.popFirst()
+    default: inputs.append(argument)
+    }
+}
+guard !inputs.isEmpty else {
+    FileHandle.standardError.write(Data("usage: summarize.swift [--out summary.md] [--merged results.json] results.json...\n".utf8))
     exit(1)
 }
-let report = try JSONDecoder().decode(Report.self, from: Data(contentsOf: URL(fileURLWithPath: arguments[1])))
+
+let reports = try inputs.map { try JSONDecoder().decode(Report.self, from: Data(contentsOf: URL(fileURLWithPath: $0))) }
+var report = reports[0]
+for other in reports.dropFirst() {
+    report.fixtures += other.fixtures.filter { fixture in !report.fixtures.contains { $0.id == fixture.id } }
+    report.series += other.series
+    report.failures += other.failures
+}
+if let mergedPath {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    try encoder.encode(report).write(to: URL(fileURLWithPath: mergedPath))
+}
 let environment = report.environment
 
 var lines: [String] = []
@@ -71,6 +97,9 @@ lines.append("- System: \(environment.system)")
 lines.append("- Screen: \(environment.screen)")
 lines.append("- Readium: \(environment.readium)")
 lines.append("- Started: \(environment.startedAt)")
+if reports.count > 1 {
+    lines.append("- Merged from \(reports.count) runs, one per fixture, each on its own CI machine. Compare readers within a fixture, not across fixtures.")
+}
 if environment.simulator {
     lines.append("")
     lines.append("> Simulator numbers use the Mac's processor and memory. Use them to compare readers on the same machine and to catch regressions, not as device performance.")
@@ -108,8 +137,8 @@ if !report.failures.isEmpty {
 }
 
 let markdown = lines.joined(separator: "\n") + "\n"
-if arguments.count >= 3 {
-    try markdown.write(to: URL(fileURLWithPath: arguments[2]), atomically: true, encoding: .utf8)
+if let outPath {
+    try markdown.write(to: URL(fileURLWithPath: outPath), atomically: true, encoding: .utf8)
 } else {
     print(markdown, terminator: "")
 }
