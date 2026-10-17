@@ -51,7 +51,7 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Restore build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Benchmarks/.build
           key: build-${{ hashFiles('Benchmarks/ReaderBench/project.yml', 'Benchmarks/ReaderBench/Sources/**') }}
@@ -65,7 +65,7 @@ jobs:
       # A tarball keeps the app's symlinks and permissions, which artifacts drop.
       - name: Package
         run: tar -czf bench-tools.tgz -C Benchmarks/.build/Build/Products/Release-iphonesimulator ReaderBench.app -C "$PWD/Benchmarks/Scripts" corpus-tool
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: bench-tools
           path: bench-tools.tgz
@@ -82,7 +82,7 @@ jobs:
         fixture: ${{ fromJSON(needs.plan.outputs.fixtures) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: bench-tools
       - name: Unpack
@@ -90,7 +90,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bench"
           tar -xzf bench-tools.tgz -C "$RUNNER_TEMP/bench"
       - name: Restore corpus
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Benchmarks/.corpus
           key: corpus-${{ matrix.fixture }}-${{ hashFiles('Benchmarks/corpus.json', 'Benchmarks/Scripts/corpus.swift') }}
@@ -108,7 +108,7 @@ jobs:
           swift Benchmarks/Scripts/run.swift "${args[@]}"
       - name: Upload results
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: results-${{ matrix.fixture }}
           path: Benchmarks/Results/ci
@@ -124,7 +124,7 @@ jobs:
     container: swift:6.4-noble
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: results-*
           path: results
@@ -141,7 +141,7 @@ jobs:
           cat summary.md
           echo "--- results.json ---"
           cat results.json
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: |
