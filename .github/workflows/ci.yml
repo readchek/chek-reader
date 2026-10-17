@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     container: swift:6.4-noble
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build
         run: swift build --build-tests
       - name: Test
@@ -24,7 +24,7 @@ jobs:
     name: Package and demo on Apple platforms
     runs-on: xcode-27
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Check Xcode
         run: |
           xcodebuild -version
