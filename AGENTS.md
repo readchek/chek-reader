@@ -77,6 +77,10 @@ Before you push, build and test whatever you changed. If your environment can't 
 
 ## Pull requests
 
+- `main` is protected by the ruleset in `.github/rulesets/main.json`. Every change lands through a pull request, with no direct pushes, force pushes or branch deletion.
+- Both CI jobs must pass on a branch that is up to date with `main`, and every review thread must be resolved before merging.
+- Merge by squash only, so `main` keeps a linear history.
 - Branch from `main` and keep each PR to one change.
-- Describe the change in plain language, with a "Before" and "After" paragraph.
+- Fill in the PR template with "Before", "After" and "How" in plain language.
 - Update the README when products, requirements or usage change, and update this file when a convention or decision changes.
+- Outside contributions aren't accepted yet (see CONTRIBUTING.md). Don't merge or review PRs from people outside the maintainers.

@@ -1,8 +1,30 @@
-# Chek Reader
+<p align="center">
+  <img src=".github/assets/mark.svg" alt="Chek" width="80" height="80" />
+</p>
 
-A reading engine for Apple platforms, with optional UI. It opens EPUB, PDF, comics, plain text, Markdown, MOBI, AZW3 and FictionBook on iPhone, iPad and Apple Silicon Macs. It reads local files offline and streams publications from URLs, and it has no account, server or app-specific code of its own.
+<h1 align="center">Chek Reader</h1>
 
-> **Status: early development.** The package structure, format detection, positions and the session controller are in place. The format engines are not, so opening a publication currently reports that its format is not implemented yet.
+<p align="center">The reading engine behind Chek. Books, comics and documents for any Apple app.</p>
+
+<p align="center">
+  <a href="https://chek.page">Chek</a>
+  ·
+  <a href="AGENTS.md">Contributor guide</a>
+  ·
+  <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
+</p>
+
+> In development. The package structure is in place; the format engines are not, so opening a publication currently reports that its format is not implemented yet.
+
+## Overview
+
+Chek Reader is a standalone Swift package for reading on iPhone, iPad and Apple
+Silicon Mac. It opens EPUB, PDF, comics, plain text, Markdown, MOBI, AZW3 and
+FictionBook, from local files offline or streamed from a server.
+
+It powers the [Chek](https://chek.page) app, but has no Chek-specific code, no
+account and no server of its own, so any app can use it. Each format is its own
+product, and apps compile only the formats they include.
 
 ## Requirements
 
@@ -87,7 +109,7 @@ Reading positions are `Locator` values. Their JSON matches the Readium Locator m
 
 ## Repository layout
 
-```
+```text
 Package.swift
 Sources/
   ChekReaderCore/        Publication model, Locator, formats, limits, errors
@@ -114,4 +136,4 @@ See [AGENTS.md](AGENTS.md) for the conventions contributors and coding agents fo
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](LICENSE). Chek Reader isn't accepting outside contributions yet; see [CONTRIBUTING.md](CONTRIBUTING.md).
