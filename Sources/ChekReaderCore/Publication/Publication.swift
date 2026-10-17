@@ -97,6 +97,15 @@ public struct Publication: Sendable {
         try ReaderError.checkCancellation()
         return try await container.data(at: Link(href: href).path)
     }
+
+    /// The size of the resource at `path` in bytes, reading it only when
+    /// the container can't say without reading.
+    package func length(of path: String) async throws(ReaderError) -> Int64 {
+        if let length = await container.length(of: path) {
+            return length
+        }
+        return Int64(try await data(at: path).count)
+    }
 }
 
 extension Publication {

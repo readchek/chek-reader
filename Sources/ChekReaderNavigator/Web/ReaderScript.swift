@@ -1,3 +1,4 @@
+import ChekReaderCore
 import Foundation
 
 /// The reader's own script, compiled from `Scripts/Reader` and bundled with
@@ -22,6 +23,11 @@ enum ReaderScript {
         return source
     }()
 
+    /// The arguments for the script's `setPreferences` call.
+    static func preferenceArguments(_ preferences: ReaderPreferences) -> [String: Any] {
+        ["fontScale": preferences.fontScale, "theme": preferences.theme.rawValue]
+    }
+
     /// The options for the script's `paginate` call. Each key becomes a
     /// variable in the called function.
     static func paginateArguments(fixedLayout: Bool, generation: Int) -> [String: Any] {
@@ -41,6 +47,9 @@ struct ScriptPageState: Equatable, Sendable {
     var page: Int
     var pageCount: Int
     var generation: Int
+    /// The text at the start of the page, which finds the same place
+    /// again after the layout changes.
+    var text: Locator.Text?
 
     /// Reads the script's reply, which arrives as a dictionary of numbers.
     init?(_ value: Any?) {
@@ -52,6 +61,13 @@ struct ScriptPageState: Equatable, Sendable {
         self.page = max(0, min(page, pageCount - 1))
         self.pageCount = pageCount
         self.generation = Self.integer(dictionary["generation"]) ?? 0
+        if let text = dictionary["text"] as? [String: Any], let highlight = text["highlight"] as? String, !highlight.isEmpty {
+            self.text = Locator.Text(
+                before: text["before"] as? String,
+                highlight: highlight,
+                after: text["after"] as? String
+            )
+        }
     }
 
     /// JavaScript numbers arrive as `NSNumber` from WebKit, and as Swift

@@ -119,6 +119,18 @@ Damaged but readable files still open, and what was repaired or skipped is liste
 
 Reading positions are `Locator` values. Their JSON matches the Readium Locator model, so they can be stored and synced as-is.
 
+To control the reader yourself, keep a `ReaderController` and show it with `NavigatorView`. Locations carry the text at the start of the page, so a saved location lands on the same passage after the text size or screen changes, and a position number and total progression once the book's positions are worked out:
+
+```swift
+let controller = ReaderController(preferences: ReaderPreferences(fontScale: 1.2, theme: .sepia))
+try await controller.open(.file(bookURL), at: savedLocation)
+
+controller.location?.locations.position          // like a page number that doesn't change with the text size
+controller.location?.locations.totalProgression  // 0 to 1 through the whole book
+await controller.goForward()
+await controller.setPreferences(ReaderPreferences(fontScale: 1.5, theme: .dark))
+```
+
 ## Repository layout
 
 ```text

@@ -246,3 +246,26 @@ private struct DictionaryProvider: ResourceProvider {
         return Data(content.utf8)
     }
 }
+
+@Suite struct EPUBPositionsTests {
+    @Test func countsOnePositionPerKilobyteOfText() async throws {
+        let long = "<html><body><p>" + String(repeating: "word ", count: 600) + "</p></body></html>"
+        let book = EPUBFixture.book([
+            ("META-INF/container.xml", EPUBFixture.container()),
+            ("OEBPS/content.opf", EPUBFixture.minimalOPF(
+                manifest: """
+                <item id="a" href="a.xhtml" media-type="application/xhtml+xml"/>
+                <item id="b" href="b.xhtml" media-type="application/xhtml+xml"/>
+                """,
+                spine: #"<itemref idref="a"/><itemref idref="b"/>"#
+            )),
+            ("OEBPS/a.xhtml", long),
+            ("OEBPS/b.xhtml", EPUBFixture.chapter("Short")),
+        ])
+        let publication = try await EPUBModule.open(.data(book), format: .epub, limits: .default)
+        let positions = try await publication.positions()
+        // 3,000-odd bytes make three positions; a short chapter still has one.
+        #expect(positions.locators.map(\.href) == ["OEBPS/a.xhtml", "OEBPS/a.xhtml", "OEBPS/a.xhtml", "OEBPS/b.xhtml"])
+        #expect(positions.locator(at: 4)?.locations.totalProgression == 0.75)
+    }
+}

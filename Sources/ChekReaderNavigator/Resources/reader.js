@@ -151,14 +151,16 @@ const ChekReader = (() => {
         paginated = true;
         return state();
     }
-    /** Lays the resource out again, for example after a resize, keeping the progression. */
+    /**
+     * Lays the resource out again, for example after a resize, keeping the
+     * text at the start of the page on screen.
+     */
     function relayout(generation) {
         options.generation = generation;
+        const anchor = options.layout === "reflowable" ? pinned ?? locate() : null;
         const progression = state().progression;
         relayoutNow();
-        page = Math.min(pageCount - 1, Math.floor(progression * pageCount + 1e-6));
-        scrollToPage();
-        return state();
+        return restore(anchor, progression, generation);
     }
     function relayoutNow() {
         if (options.layout === "fixed") {
@@ -170,7 +172,16 @@ const ChekReader = (() => {
         measure();
         scrollToPage();
     }
+    /**
+     * The text a relayout keeps on screen. It's kept across relayouts, so
+     * several in a row don't drift, and cleared when the reader moves.
+     */
+    let pinned = null;
     function goToPage(target, generation) {
+        pinned = null;
+        return showPage(target, generation);
+    }
+    function showPage(target, generation) {
         options.generation = generation;
         page = Math.max(0, Math.min(pageCount - 1, Math.floor(target)));
         scrollToPage();
@@ -183,20 +194,181 @@ const ChekReader = (() => {
         const clamped = Math.max(0, Math.min(1, progression));
         return goToPage(Math.floor(clamped * pageCount + 1e-6), generation);
     }
+    /** The page a box on screen is on, counted in the direction pages advance. */
+    function pageOf(rect) {
+        const scroller = document.scrollingElement ?? root();
+        const offset = isRightToLeft()
+            ? window.innerWidth - rect.right - scroller.scrollLeft
+            : rect.left + scroller.scrollLeft;
+        return Math.max(0, Math.min(pageCount - 1, Math.floor(Math.max(0, offset) / pageWidth)));
+    }
     /** Moves to the page holding the element with `id`. Returns null when there's none. */
     function goToFragment(id, generation) {
         const element = document.getElementById(id) ?? document.getElementsByName(id)[0];
         if (!element) {
             return null;
         }
-        // The element's distance from the start of the first page, in the
-        // direction pages advance.
-        const scroller = document.scrollingElement ?? root();
-        const rect = element.getBoundingClientRect();
-        const offset = isRightToLeft()
-            ? window.innerWidth - rect.right - scroller.scrollLeft
-            : rect.left + scroller.scrollLeft;
-        return goToPage(Math.floor(Math.max(0, offset) / pageWidth), generation);
+        return goToPage(pageOf(element.getBoundingClientRect()), generation);
+    }
+    // MARK: Text anchors
+    /** How much text on each side of a position identifies it. */
+    const anchorLength = 32;
+    /** The visible text of the document as one string, with each text node's start. */
+    function textIndex() {
+        const nodes = [];
+        let text = "";
+        const walker = document.createTreeWalker(document.body ?? root(), NodeFilter.SHOW_TEXT, {
+            acceptNode: (node) => {
+                const parent = node.parentElement;
+                return parent && !parent.closest("script, style, head") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            },
+        });
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            nodes.push({ node: node, start: text.length });
+            text += node.nodeValue ?? "";
+        }
+        return { text, nodes };
+    }
+    /** Collapses runs of whitespace, so anchors survive reformatting. */
+    function normalized(text) {
+        return text.replace(/\s+/g, " ");
+    }
+    /**
+     * The text at the start of the current page, with some text before it,
+     * so the same spot can be found after the layout changes.
+     */
+    function locate() {
+        const { text, nodes } = textIndex();
+        if (nodes.length === 0) {
+            return null;
+        }
+        // The first text node, and the first character in it, that's on this page.
+        for (const { node, start } of nodes) {
+            const length = node.nodeValue?.length ?? 0;
+            if (length === 0 || !node.nodeValue?.trim()) {
+                continue;
+            }
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const rects = Array.from(range.getClientRects());
+            if (!rects.some((rect) => rect.width > 0 && pageOf(rect) >= page)) {
+                continue;
+            }
+            // Binary search for the first character on this page or later.
+            let low = 0;
+            let high = length - 1;
+            while (low < high) {
+                const middle = (low + high) >> 1;
+                range.setStart(node, middle);
+                range.setEnd(node, middle + 1);
+                const rect = range.getClientRects()[0];
+                if (rect && pageOf(rect) >= page) {
+                    high = middle;
+                }
+                else {
+                    low = middle + 1;
+                }
+            }
+            let offset = start + low;
+            // Start at a word, not in the middle of one.
+            while (offset < text.length && /\s/.test(text[offset] ?? "")) {
+                offset += 1;
+            }
+            return {
+                before: normalized(text.slice(Math.max(0, offset - anchorLength), offset)),
+                highlight: normalized(text.slice(offset, offset + anchorLength)),
+                after: normalized(text.slice(offset + anchorLength, offset + 2 * anchorLength)),
+            };
+        }
+        return null;
+    }
+    /**
+     * Moves to the page holding `highlight`, preferring the occurrence that
+     * follows `before`. Returns null when the text isn't in the resource.
+     */
+    function goToText(highlight, before, generation) {
+        const { text, nodes } = textIndex();
+        // Search normalized text, keeping a map back to raw offsets.
+        let flat = "";
+        const raw = [];
+        for (let index = 0; index < text.length; index += 1) {
+            const character = text[index] ?? "";
+            if (/\s/.test(character)) {
+                if (flat.endsWith(" ")) {
+                    continue;
+                }
+                flat += " ";
+            }
+            else {
+                flat += character;
+            }
+            raw.push(index);
+        }
+        const target = normalized(highlight);
+        if (!target.trim()) {
+            return null;
+        }
+        const withContext = before ? flat.indexOf(normalized(before) + target) : -1;
+        const found = withContext >= 0 ? withContext + normalized(before).length : flat.indexOf(target);
+        if (found < 0) {
+            return null;
+        }
+        const offset = raw[found] ?? 0;
+        const entry = [...nodes].reverse().find(({ start }) => start <= offset);
+        if (!entry) {
+            return null;
+        }
+        const range = document.createRange();
+        const within = Math.min(offset - entry.start, Math.max(0, (entry.node.nodeValue?.length ?? 1) - 1));
+        range.setStart(entry.node, within);
+        range.setEnd(entry.node, Math.min(within + 1, entry.node.nodeValue?.length ?? 0));
+        const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+        const state = showPage(pageOf(rect), generation);
+        pinned = { highlight, before };
+        return state;
+    }
+    const themes = {
+        light: { text: "#1d1d1f", background: "#ffffff", link: "#0b57d0" },
+        sepia: { text: "#4b3a26", background: "#f5ecd9", link: "#7a4b12" },
+        dark: { text: "#e8e6e3", background: "#121212", link: "#8ab4f8" },
+    };
+    /** Applies `preferences`, lays the resource out again and keeps the reading position. */
+    function setPreferences(preferences, generation) {
+        const anchor = paginated ? pinned ?? locate() : null;
+        const progression = state().progression;
+        const id = "chek-reader-preferences";
+        let style = document.getElementById(id);
+        if (!style) {
+            style = document.createElement("style");
+            style.id = id;
+            (document.head ?? root()).appendChild(style);
+        }
+        const scale = Math.max(0.5, Math.min(3, Number.isFinite(preferences.fontScale) ? preferences.fontScale : 1));
+        const theme = preferences.theme === "default" ? null : themes[preferences.theme];
+        style.textContent = `
+            html { font-size: ${scale * 100}% !important; -webkit-text-size-adjust: none; }
+            ${theme ? `
+            html, body { background: ${theme.background} !important; color: ${theme.text} !important; }
+            body * { color: inherit !important; background-color: transparent !important; border-color: currentColor !important; }
+            a, a * { color: ${theme.link} !important; }
+            ` : ""}
+        `;
+        if (!paginated || options.layout === "fixed") {
+            return state();
+        }
+        options.generation = generation;
+        relayoutNow();
+        return restore(anchor, progression, generation);
+    }
+    /** Shows `anchor` after a relayout, or `progression` when the text can't be found. */
+    function restore(anchor, progression, generation) {
+        const restored = anchor ? goToText(anchor.highlight, anchor.before, generation) : null;
+        if (restored) {
+            return restored;
+        }
+        const state = goToProgression(progression, generation);
+        pinned = anchor;
+        return state;
     }
     // Content that grows after layout, such as late images, can add pages.
     if (typeof ResizeObserver !== "undefined") {
@@ -305,6 +477,8 @@ const ChekReader = (() => {
             post({ type: "wheel", direction: wheelTotal > 0 ? "next" : "previous" });
         }
     }, { passive: false });
-    return { paginate, relayout, goToPage, goToLastPage, goToProgression, goToFragment, state };
+    return {
+        paginate, relayout, goToPage, goToLastPage, goToProgression, goToFragment, goToText, locate, setPreferences, state,
+    };
 })();
 globalThis.chekReader = ChekReader;

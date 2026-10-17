@@ -6,6 +6,9 @@ package protocol PublicationContainer: Sendable {
     var paths: Set<String>? { get }
     /// The bytes of the resource at `path`, relative to the publication's root.
     func data(at path: String) async throws(ReaderError) -> Data
+    /// The size of the resource at `path` in bytes, when the container
+    /// knows it without reading the resource.
+    func length(of path: String) async -> Int64?
 }
 
 extension PublicationContainer {
@@ -13,6 +16,10 @@ extension PublicationContainer {
     /// contents are assumed to have everything.
     package func contains(_ path: String) -> Bool {
         paths?.contains(path) ?? true
+    }
+
+    package func length(of path: String) async -> Int64? {
+        nil
     }
 }
 
