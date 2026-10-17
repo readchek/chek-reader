@@ -118,7 +118,7 @@ package struct ZIPArchive: PublicationContainer {
         if entryCount == 0xFFFF || directorySize == 0xFFFF_FFFF || directoryOffset == 0xFFFF_FFFF {
             let locator = end - 20
             if locator >= 0, try bytes.uint32(at: locator) == zip64Locator {
-                let record = try bytes.int64(at: locator + 8)
+                let record = try Int(bytes.int64(at: locator + 8))
                 guard try bytes.uint32(at: record) == zip64EndOfCentralDirectory else {
                     throw .malformed(reason: "The archive's ZIP64 directory record is missing.")
                 }
