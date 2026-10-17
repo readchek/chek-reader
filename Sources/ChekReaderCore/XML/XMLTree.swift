@@ -26,7 +26,9 @@ package enum XMLTree {
         parser.externalEntityResolvingPolicy = .never
         #endif
         let builder = TreeBuilder(maxDepth: limits.maxXMLDepth)
-        parser.delegate = builder
+        // `delegate` is unowned(unsafe) on Apple platforms. `builder` is a
+        // local that outlives `parse()`, the only call that uses it.
+        unsafe parser.delegate = builder
         let succeeded = parser.parse()
 
         if builder.exceededDepth {
