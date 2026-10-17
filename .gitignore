@@ -5,3 +5,12 @@
 xcuserdata/
 DerivedData/
 *.xcuserstate
+
+# Benchmarks: generated project, build output, fetched corpus and local runs
+/Benchmarks/.build
+/Benchmarks/ReaderBench/ReaderBench.xcodeproj
+/Benchmarks/ReaderBench/Corpus
+/Benchmarks/Results/latest
+/Benchmarks/Results/ci
+/Benchmarks/.corpus
+/Benchmarks/Scripts/corpus-tool

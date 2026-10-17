@@ -1,0 +1,48 @@
+# XcodeGen spec for the benchmark host app. Generate with:
+#   xcodegen generate --spec Benchmarks/ReaderBench/project.yml
+# The generated ReaderBench.xcodeproj is not committed.
+#
+# The app links each reader it compares (today: Readium and the system
+# frameworks) and runs the scenarios in BenchRunner on launch. It is a
+# comparison tool only; nothing in the Chek Reader package depends on it.
+name: ReaderBench
+options:
+  bundleIdPrefix: page.chek.bench
+  deploymentTarget:
+    iOS: "26.0"
+packages:
+  Readium:
+    url: https://github.com/readium/swift-toolkit
+    exactVersion: 3.11.1
+targets:
+  ReaderBench:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Corpus
+        type: folder
+        buildPhase: resources
+        optional: true
+    dependencies:
+      - package: Readium
+        product: ReadiumShared
+      - package: Readium
+        product: ReadiumStreamer
+      - package: Readium
+        product: ReadiumNavigator
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: page.chek.bench.ReaderBench
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # Readium's public API is not annotated for Sendable, so this app,
+        # which is tooling and not part of the package, stays in Swift 5 mode.
+        SWIFT_VERSION: "5.0"
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+        # Ad hoc signing needs no certificate and is enough for the simulator.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
