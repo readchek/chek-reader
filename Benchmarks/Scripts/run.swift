@@ -91,7 +91,9 @@ let runtimes = list.devices.keys.filter { $0.contains("SimRuntime.iOS") }.sorted
 let wanted = options["device"]
 guard
     let device = runtimes.lazy.compactMap({ runtime in
-        list.devices[runtime]?.first { $0.isAvailable && (wanted.map { name in $0.name == name } ?? $0.name.hasPrefix("iPhone")) }
+        list.devices[runtime]?.first { device in
+            device.isAvailable && (wanted.map { device.name == $0 } ?? device.name.hasPrefix("iPhone"))
+        }
     }).first
 else { fail("no available simulator\(wanted.map { " named \($0)" } ?? "")") }
 print("Using \(device.name) (\(device.udid))")
