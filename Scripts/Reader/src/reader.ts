@@ -106,21 +106,28 @@ const ChekReader = (() => {
         const margin = Math.max(0, Math.min(options.margin, width / 4));
         const verticalMargin = Math.max(0, Math.min(options.verticalMargin, height / 4));
         const html = root();
+        // WebKit doesn't lay the root element out in columns, so the body
+        // holds them and the root scrolls across the columns that overflow.
+        const container = document.body ?? html;
+
+        setImportant(html, "margin", "0");
+        setImportant(html, "padding", "0");
+        setImportant(html, "height", `${height}px`);
+        setImportant(html, "max-width", "none");
+        setImportant(html, "overflow", "visible");
 
         // Each page is one viewport wide: `columns` columns separated and
         // edged by `margin`, so column k of page p starts at p * width + margin.
-        setImportant(html, "box-sizing", "border-box");
-        setImportant(html, "width", `${width}px`);
-        setImportant(html, "max-width", "none");
-        setImportant(html, "height", `${height}px`);
-        setImportant(html, "margin", "0");
-        setImportant(html, "padding", `${verticalMargin}px ${margin}px`);
-        setImportant(html, "column-count", String(columns));
-        setImportant(html, "column-gap", `${2 * margin}px`);
-        setImportant(html, "column-fill", "auto");
-        // Not hidden: WebKit stops reporting the columns' scroll width when
-        // the root clips. The native view stops the reader panning instead.
-        setImportant(html, "overflow", "visible");
+        setImportant(container, "box-sizing", "border-box");
+        setImportant(container, "width", `${width}px`);
+        setImportant(container, "max-width", "none");
+        setImportant(container, "height", `${height}px`);
+        setImportant(container, "margin", "0");
+        setImportant(container, "padding", `${verticalMargin}px ${margin}px`);
+        setImportant(container, "column-count", String(columns));
+        setImportant(container, "column-gap", `${2 * margin}px`);
+        setImportant(container, "column-fill", "auto");
+        setImportant(container, "overflow", "visible");
         installMediaStyle(height - 2 * verticalMargin);
         pageWidth = width;
     }
