@@ -50,8 +50,8 @@ public struct Link: Hashable, Sendable {
         /// What the resource contains, from its EPUB manifest properties,
         /// such as `scripted`, `mathml`, `svg` or `remote-resources`.
         public var contains: Set<String>
-        /// The font obfuscation applied to the resource, if any. Obfuscated
-        /// fonts must be de-obfuscated before they're used.
+        /// The font obfuscation the resource was stored with, if any.
+        /// ``Publication/data(at:)`` returns the font already de-obfuscated.
         public var obfuscation: FontObfuscation?
 
         public init(

@@ -97,6 +97,19 @@ struct EPUBParser {
             navigation.landmarks = document.guide
         }
 
+        // Fonts are de-obfuscated as they're read, so renderers get usable fonts.
+        var resourceContainer = container
+        if !obfuscatedFonts.isEmpty {
+            if document.metadata.identifier == nil {
+                warnings.append(PublicationWarning("Fonts are obfuscated, but the publication has no identifier to de-obfuscate them with.", href: packagePath))
+            }
+            resourceContainer = DeobfuscatingContainer(
+                base: container,
+                fonts: obfuscatedFonts,
+                identifier: document.metadata.identifier ?? ""
+            )
+        }
+
         return Publication(
             format: .epub,
             metadata: document.metadata,
@@ -106,7 +119,7 @@ struct EPUBParser {
             landmarks: navigation.landmarks,
             resources: resources,
             warnings: warnings,
-            container: container
+            container: resourceContainer
         )
     }
 
