@@ -19,6 +19,8 @@ on:
   push:
     paths:
       - "Benchmarks/**"
+      - "!Benchmarks/Results/**"
+      - "!Benchmarks/README.md"
       - ".github/workflows/benchmarks.yml"
 
 concurrency:
