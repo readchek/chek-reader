@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Core on Linux
+    runs-on: ubuntu-latest
+    container: swift:6.4-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build --build-tests
+      - name: Test
+        run: swift test --skip-build
+
+  apple:
+    name: Package and demo on Apple platforms
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 27
+        run: |
+          xcode=$(ls -d /Applications/Xcode_27*.app | sort -V | tail -1)
+          if [ -z "$xcode" ]; then
+            echo "::error::No Xcode 27 on this runner"; ls -d /Applications/Xcode*.app; exit 1
+          fi
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+      - name: Test package on macOS
+        run: xcodebuild test -scheme ChekReader-Package -destination 'platform=macOS'
+      - name: Build package for iOS Simulator
+        run: xcodebuild build -scheme ChekReader-Package -destination 'generic/platform=iOS Simulator'
+      - name: Build demo app for macOS
+        run: >
+          xcodebuild build -project Examples/ChekReaderDemo/ChekReaderDemo.xcodeproj
+          -scheme ChekReaderDemo -destination 'generic/platform=macOS'
+          CODE_SIGNING_ALLOWED=NO
+      - name: Build demo app for iOS Simulator
+        run: >
+          xcodebuild build -project Examples/ChekReaderDemo/ChekReaderDemo.xcodeproj
+          -scheme ChekReaderDemo -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
