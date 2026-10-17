@@ -23,8 +23,11 @@ package enum SHA1 {
         for chunk in stride(from: 0, to: message.count, by: 64) {
             for index in 0..<16 {
                 let base = chunk + index * 4
-                words[index] = UInt32(message[base]) << 24 | UInt32(message[base + 1]) << 16
-                    | UInt32(message[base + 2]) << 8 | UInt32(message[base + 3])
+                var word: UInt32 = 0
+                for offset in 0..<4 {
+                    word = word << 8 | UInt32(message[base + offset])
+                }
+                words[index] = word
             }
             for index in 16..<80 {
                 words[index] = rotate(words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16], by: 1)
@@ -47,7 +50,9 @@ package enum SHA1 {
                     f = b ^ c ^ d
                     k = 0xCA62_C1D6
                 }
-                let temp = rotate(a, by: 5) &+ f &+ e &+ k &+ words[index]
+                var temp: UInt32 = rotate(a, by: 5) &+ f
+                temp = temp &+ e &+ k
+                temp = temp &+ words[index]
                 e = d
                 d = c
                 c = rotate(b, by: 30)
@@ -56,9 +61,16 @@ package enum SHA1 {
             }
             h = (h.0 &+ a, h.1 &+ b, h.2 &+ c, h.3 &+ d, h.4 &+ e)
         }
-        return [h.0, h.1, h.2, h.3, h.4].flatMap { word in
-            [UInt8(word >> 24), UInt8(word >> 16 & 0xFF), UInt8(word >> 8 & 0xFF), UInt8(word & 0xFF)]
+        // Spelled out step by step: the one-expression form is too slow for
+        // the type checker.
+        var digest: [UInt8] = []
+        digest.reserveCapacity(20)
+        for word in [h.0, h.1, h.2, h.3, h.4] {
+            for shift in stride(from: UInt32(24), through: 0, by: -8) {
+                digest.append(UInt8(truncatingIfNeeded: word >> shift))
+            }
         }
+        return digest
     }
 
     private static func rotate(_ value: UInt32, by amount: UInt32) -> UInt32 {
