@@ -320,11 +320,20 @@ const ChekReader = (() => {
         }
         return null;
     }
+    /** Every index of `target` in `text`, up to a bound. */
+    function occurrences(text, target) {
+        const found = [];
+        for (let index = text.indexOf(target); index >= 0 && found.length < 1000; index = text.indexOf(target, index + 1)) {
+            found.push(index);
+        }
+        return found;
+    }
     /**
-     * Moves to the page holding `highlight`, preferring the occurrence that
-     * follows `before`. Returns null when the text isn't in the resource.
+     * Moves to the page holding `highlight`, preferring occurrences that
+     * follow `before`, and of those the one nearest `near`, a progression
+     * through the resource. Returns null when the text isn't in the resource.
      */
-    function goToText(highlight, before, generation) {
+    function goToText(highlight, before, generation, near) {
         const { text, nodes } = textIndex();
         // Search normalized text, keeping a map back to raw offsets.
         let flat = "";
@@ -346,11 +355,15 @@ const ChekReader = (() => {
         if (!target.trim()) {
             return null;
         }
-        const withContext = before ? flat.indexOf(normalized(before) + target) : -1;
-        const found = withContext >= 0 ? withContext + normalized(before).length : flat.indexOf(target);
-        if (found < 0) {
+        const context = normalized(before);
+        const withContext = context ? occurrences(flat, context + target).map((index) => index + context.length) : [];
+        const candidates = withContext.length > 0 ? withContext : occurrences(flat, target);
+        if (candidates.length === 0) {
             return null;
         }
+        // Repeated text, such as a refrain, matches in several places.
+        const goal = near !== undefined && Number.isFinite(near) && near >= 0 ? Math.min(near, 1) * flat.length : 0;
+        const found = candidates.reduce((best, index) => Math.abs(index - goal) < Math.abs(best - goal) ? index : best);
         const offset = raw[found] ?? 0;
         const entry = [...nodes].reverse().find(({ start }) => start <= offset);
         if (!entry) {
@@ -400,7 +413,7 @@ const ChekReader = (() => {
     }
     /** Shows `anchor` after a relayout, or `progression` when the text can't be found. */
     function restore(anchor, progression, generation) {
-        const restored = anchor ? goToText(anchor.highlight, anchor.before, generation) : null;
+        const restored = anchor ? goToText(anchor.highlight, anchor.before, generation, progression) : null;
         if (restored) {
             return restored;
         }
