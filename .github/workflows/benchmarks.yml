@@ -48,7 +48,12 @@ jobs:
           swift Benchmarks/Scripts/run.swift "${args[@]}"
       - name: Publish summary
         if: always()
-        run: cat Benchmarks/Results/ci/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+        run: |
+          cat Benchmarks/Results/ci/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+          # Also in the log, which stays readable where artifact downloads aren't.
+          cat Benchmarks/Results/ci/summary.md || true
+          echo "--- results.json ---"
+          cat Benchmarks/Results/ci/results.json || true
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v5

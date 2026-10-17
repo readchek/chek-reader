@@ -111,17 +111,35 @@ final class ReadiumBench: NSObject {
         if measureRelayout, let epub = navigator as? EPUBNavigatorViewController {
             await Measure.settle(1)
             let before = await epub.firstVisibleElementLocator()
+            let readFontSize = "getComputedStyle(document.documentElement).getPropertyValue('--USER__fontSize')"
+            let initial = (try? await epub.evaluateJavaScript(readFontSize).get()) as? String ?? ""
             located.reset()
             let relayoutStart = ContinuousClock.now
             epub.submitPreferences(EPUBPreferences(fontSize: 1.5))
-            if await located.wait(timeout: 10) {
-                recorder.add(name, id, "relayoutFontSize", "ms", Measure.milliseconds(since: relayoutStart), note: "font size 100% to 150% until the next locationDidChange")
+
+            // Readium applies the change as a CSS variable from JavaScript and
+            // only reports a new location if the position changed, so poll for
+            // the variable and then force a layout to time the relayout itself.
+            var applied = false
+            while Measure.milliseconds(since: relayoutStart) < 5_000 {
+                let current = (try? await epub.evaluateJavaScript(readFontSize).get()) as? String ?? ""
+                if current != initial {
+                    _ = await epub.evaluateJavaScript("document.documentElement.scrollWidth")
+                    applied = true
+                    break
+                }
+            }
+            if applied {
+                recorder.add(name, id, "relayoutFontSize", "ms", Measure.milliseconds(since: relayoutStart), note: "font size 100% to 150% until the new size is laid out in the visible chapter")
+                if await located.wait(timeout: 3) {
+                    recorder.add(name, id, "relayoutLocationUpdate", "ms", Measure.milliseconds(since: relayoutStart), note: "same change until Readium reports the new location")
+                }
                 await Measure.settle(1)
                 let after = await epub.firstVisibleElementLocator()
                 let kept = before?.href == after?.href && before?.text.highlight == after?.text.highlight
                 recorder.add(name, id, "relayoutKeepsFirstElement", "bool", kept ? 1 : 0, note: "1 when the first visible element is the same after the change")
             } else {
-                recorder.fail("\(name) \(id): no locationDidChange within 10 s of a font size change")
+                recorder.fail("\(name) \(id): the font size change wasn't applied within 5 s")
             }
         }
 
