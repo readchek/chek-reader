@@ -81,7 +81,8 @@ private func be32(_ value: UInt32) -> [UInt8] {
 @Suite struct HuffCDICTests {
     /// A HUFF record where every code is 8 bits, so byte `b` selects phrase 255 - `b`.
     static let huff: [UInt8] = {
-        var record = Array("HUFF".utf8) + be32(0x18) + be32(24) + be32(24 + 1024)
+        // The header is 0x18 bytes, so the first table starts at 24.
+        var record = Array("HUFF".utf8) + be32(0x18) + be32(24) + be32(24 + 1024) + [UInt8](repeating: 0, count: 8)
         for _ in 0..<256 {
             record += be32(255 << 8 | 0x80 | 8)
         }
