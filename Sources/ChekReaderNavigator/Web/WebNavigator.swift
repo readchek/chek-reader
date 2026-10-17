@@ -85,8 +85,9 @@ final class WebNavigator: ReaderNavigator {
         }
         if state == nil, let text = locator.text, let highlight = text.highlight, !highlight.isEmpty {
             state = await call(
-                "chekReader.goToText(highlight, before, generation)",
-                ["highlight": highlight, "before": text.before ?? ""],
+                "chekReader.goToText(highlight, before, generation, near)",
+                // A negative `near` means no hint, so the first match wins.
+                ["highlight": highlight, "before": text.before ?? "", "near": locator.locations.progression ?? -1],
                 in: slot
             )
         }
