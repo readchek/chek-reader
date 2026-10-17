@@ -163,7 +163,10 @@ try FileManager.default.createDirectory(at: installedCorpus.deletingLastPathComp
 // On APFS this is a clone, so even the large comic copies instantly.
 try FileManager.default.copyItem(at: corpusDirectory, to: installedCorpus)
 
-var launch = ["xcrun", "simctl", "launch", "--console", "--terminate-running-process", device.udid, bundleID]
+// Also pass the corpus's path on the Mac. The copy above is what local runs
+// use; an app built on another CI machine has been seen to look in a
+// different container than get_app_container reports.
+var launch = ["xcrun", "simctl", "launch", "--console", "--terminate-running-process", device.udid, bundleID, "-corpus", corpusDirectory.path]
 for key in ["runs", "turns", "only"] {
     if let value = options[key] { launch += ["-\(key)", value] }
 }

@@ -55,16 +55,23 @@ struct BenchRunner {
 
         // run.swift copies the corpus into Documents after installing, which
         // keeps the app small and quick to install. Device builds bundle it.
+        // run.swift also passes the corpus's path on the Mac with -corpus,
+        // which the simulator can read directly.
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let candidates = [documents.appendingPathComponent("Corpus"), Bundle.main.url(forResource: "Corpus", withExtension: nil)]
+        let candidates = [
+            documents.appendingPathComponent("Corpus"),
+            defaults.string(forKey: "corpus").map { URL(fileURLWithPath: $0) },
+            Bundle.main.url(forResource: "Corpus", withExtension: nil),
+        ].compactMap { $0 }
         guard
-            let corpus = candidates.compactMap({ $0 }).first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("manifest.json").path) }),
+            let corpus = candidates.first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("manifest.json").path) }),
             let data = try? Data(contentsOf: corpus.appendingPathComponent("manifest.json")),
             let fixtures = try? JSONDecoder().decode([Fixture].self, from: data)
         else {
-            print("BENCH failure: no Corpus/manifest.json in Documents or the app bundle. Run Benchmarks/Scripts/corpus.swift first.")
+            print("BENCH failure: no manifest.json in \(candidates.map(\.path).joined(separator: ", ")). Run Benchmarks/Scripts/corpus.swift first.")
             return
         }
+        print("BENCH corpus \(corpus.path)")
 
         let recorder = Recorder(fixtures: fixtures)
         // Let launch work finish so it doesn't land in the first sample.
