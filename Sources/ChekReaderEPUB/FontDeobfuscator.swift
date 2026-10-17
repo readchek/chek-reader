@@ -58,6 +58,10 @@ struct DeobfuscatingContainer: PublicationContainer {
 
     var paths: Set<String>? { base.paths }
 
+    func length(of path: String) async -> Int64? {
+        await base.length(of: path)
+    }
+
     func data(at path: String) async throws(ReaderError) -> Data {
         let data = try await base.data(at: path)
         guard let scheme = fonts[path] else { return data }

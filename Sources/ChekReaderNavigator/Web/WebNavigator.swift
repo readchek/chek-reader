@@ -43,6 +43,7 @@ final class WebNavigator: ReaderNavigator {
     @ObservationIgnored private let session: Int
     @ObservationIgnored private let server: PublicationServer
     @ObservationIgnored private let allowsScripts: Bool
+    @ObservationIgnored private var preferences: ReaderPreferences
     /// Shared by every page, so they share one set of web content processes.
     @ObservationIgnored private let dataStore = WKWebsiteDataStore.nonPersistent()
     /// Increases with every navigation, so a superseded one is dropped.
@@ -55,6 +56,7 @@ final class WebNavigator: ReaderNavigator {
         self.publication = publication
         session = controller.session
         allowsScripts = controller.allowsPublicationScripts
+        preferences = controller.preferences
         server = PublicationServer(publication: publication, allowsScripts: controller.allowsPublicationScripts)
     }
 
@@ -75,13 +77,23 @@ final class WebNavigator: ReaderNavigator {
         let slot = slot(for: index)
         guard await slot.ready?.value == true, current == generation else { return false }
 
+        // The most precise part of the locator that still matches wins: an
+        // element id, then the text, then how far through the resource.
         var state: ScriptPageState?
         if let fragment = locator.locations.fragments.first {
-            state = await call("return chekReader.goToFragment(id, generation)", ["id": fragment], in: slot)
+            state = await call("chekReader.goToFragment(id, generation)", ["id": fragment], in: slot)
+        }
+        if state == nil, let text = locator.text, let highlight = text.highlight, !highlight.isEmpty {
+            state = await call(
+                "chekReader.goToText(highlight, before, generation, near)",
+                // A negative `near` means no hint, so the first match wins.
+                ["highlight": highlight, "before": text.before ?? "", "near": locator.locations.progression ?? -1],
+                in: slot
+            )
         }
         if state == nil {
             let progression = locator.locations.progression ?? 0
-            state = await call("return chekReader.goToProgression(progression, generation)", ["progression": progression], in: slot)
+            state = await call("chekReader.goToProgression(progression, generation)", ["progression": progression], in: slot)
         }
         guard let state, current == generation else { return false }
         show(slot, state: state)
@@ -115,7 +127,7 @@ final class WebNavigator: ReaderNavigator {
         case .page(let page):
             generation += 1
             let current = generation
-            guard let turned = await call("return chekReader.goToPage(page, generation)", ["page": page], in: slot),
+            guard let turned = await call("chekReader.goToPage(page, generation)", ["page": page], in: slot),
                   current == generation
             else { return false }
             show(slot, state: turned)
@@ -125,12 +137,33 @@ final class WebNavigator: ReaderNavigator {
             let current = generation
             let next = self.slot(for: index)
             guard await next.ready?.value == true, current == generation else { return false }
-            let script = atEnd ? "return chekReader.goToLastPage(generation)" : "return chekReader.goToPage(0, generation)"
+            let script = atEnd ? "chekReader.goToLastPage(generation)" : "chekReader.goToPage(0, generation)"
             guard let turned = await call(script, [:], in: next), current == generation else { return false }
             show(next, state: turned)
             return true
         case .none:
             return false
+        }
+    }
+
+    func apply(_ preferences: ReaderPreferences) async {
+        self.preferences = preferences
+        generation += 1
+        let current = generation
+        let arguments = ReaderScript.preferenceArguments(preferences)
+        // The page on screen first, so the reader sees the change soonest.
+        let ordered = slots.sorted { ($0.id == resourceIndex ? 0 : 1) < ($1.id == resourceIndex ? 0 : 1) }
+        for slot in ordered {
+            let ready = await slot.ready?.value == true
+            guard current == generation else { return }
+            guard ready else { continue }
+            guard let state = await call("chekReader.setPreferences({ fontScale, theme }, generation)", arguments, in: slot) else {
+                continue
+            }
+            slot.state = state
+            if slot.id == resourceIndex {
+                report(slot)
+            }
         }
     }
 
@@ -166,6 +199,7 @@ final class WebNavigator: ReaderNavigator {
         }
         locator.locations.fragments = []
         locator.locations.progression = PagePosition(resource: slot.id, page: state.page, pageCount: state.pageCount).progression
+        locator.text = state.text
         controller?.navigator(session: session, didMoveTo: locator)
     }
 
@@ -216,18 +250,32 @@ final class WebNavigator: ReaderNavigator {
         } catch {
             return false
         }
+        // Preferences go first, so the first layout already uses them.
+        _ = try? await slot.page.callJavaScript(
+            "chekReader.setPreferences({ fontScale, theme }, generation)",
+            arguments: ReaderScript.preferenceArguments(preferences).merging(["generation": generation]) { $1 },
+            contentWorld: Self.world
+        )
         let arguments = ReaderScript.paginateArguments(fixedLayout: fixed, generation: generation)
-        let script = "return await chekReader.paginate({ layout, columns, margin, verticalMargin, generation })"
+        let script = "chekReader.paginate({ layout, columns, margin, verticalMargin, generation })"
         guard let state = await call(script, arguments, in: slot) else { return false }
         slot.state = state
         return true
     }
 
-    /// Calls the reader script in `slot`'s page and reads the page state it
-    /// answers with, or `nil` when the call failed or found nothing.
-    private func call(_ script: String, _ arguments: [String: Any], in slot: Slot) async -> ScriptPageState? {
+    /// Evaluates a reader script command in `slot`'s page and reads the page
+    /// state it answers with, plus the text at the start of the page, or
+    /// `nil` when the call failed or found nothing.
+    private func call(_ expression: String, _ arguments: [String: Any], in slot: Slot) async -> ScriptPageState? {
         var arguments = arguments
         arguments["generation"] = arguments["generation"] ?? generation
+        let script = """
+            const state = await \(expression);
+            if (state) {
+                state.text = chekReader.locate();
+            }
+            return state;
+            """
         do {
             let result = try await slot.page.callJavaScript(script, arguments: arguments, contentWorld: Self.world)
             return ScriptPageState(result)

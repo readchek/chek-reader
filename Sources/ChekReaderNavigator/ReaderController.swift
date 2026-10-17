@@ -27,6 +27,13 @@ public final class ReaderController {
     /// The current position. Observing it does not redraw views that only
     /// read ``state``.
     public private(set) var location: Locator?
+    /// Fixed positions through the publication, worked out in the
+    /// background once it opens. Until then, locations have no
+    /// ``Locator/Locations/position`` or ``Locator/Locations/totalProgression``.
+    public private(set) var positions: PositionList?
+    /// The reading settings applied to reflowable text. Set them with
+    /// ``setPreferences(_:)``.
+    public private(set) var preferences: ReaderPreferences
 
     /// The limits applied to every publication this controller opens.
     public let limits: ReaderLimits
@@ -38,9 +45,14 @@ public final class ReaderController {
     @ObservationIgnored private(set) var session = 0
     @ObservationIgnored private weak var navigator: (any ReaderNavigator)?
 
-    public init(limits: ReaderLimits = .default, allowsPublicationScripts: Bool = false) {
+    public init(
+        limits: ReaderLimits = .default,
+        allowsPublicationScripts: Bool = false,
+        preferences: ReaderPreferences = ReaderPreferences()
+    ) {
         self.limits = limits
         self.allowsPublicationScripts = allowsPublicationScripts
+        self.preferences = preferences
     }
 
     /// Opens a publication, replacing any open session.
@@ -54,6 +66,7 @@ public final class ReaderController {
         state = .opening
         format = nil
         publication = nil
+        positions = nil
         navigator = nil
         self.location = location
 
@@ -95,6 +108,21 @@ public final class ReaderController {
         self.location = self.location ?? opened.startLocator
         publication = opened
         state = .ready
+
+        // Positions can mean reading every resource, so they don't hold up
+        // opening. Locations reported before they're ready get them later.
+        Task { [weak self] in
+            guard let positions = try? await opened.positions() else { return }
+            self?.didFindPositions(positions, session: current)
+        }
+    }
+
+    private func didFindPositions(_ positions: PositionList, session: Int) {
+        guard session == self.session, state == .ready else { return }
+        self.positions = positions
+        if let location {
+            self.location = located(location)
+        }
     }
 
     /// Ends the session.
@@ -104,6 +132,7 @@ public final class ReaderController {
         guard state != .idle, state != .closed else { return }
         state = .closing
         publication = nil
+        positions = nil
         state = .closed
     }
 
@@ -117,7 +146,7 @@ public final class ReaderController {
         }
         guard let navigator else {
             // No view is showing the publication yet, so it opens here when one appears.
-            location = locator
+            location = located(locator)
             return true
         }
         return await navigator.go(to: locator)
@@ -152,6 +181,22 @@ public final class ReaderController {
         return await goToChapter(offset: -1)
     }
 
+    /// Moves to a 1-based position in ``positions``. Returns `false` before
+    /// positions are ready or when it's out of range.
+    @discardableResult
+    public func go(toPosition position: Int) async -> Bool {
+        guard let locator = positions?.locator(at: position) else { return false }
+        return await go(to: locator)
+    }
+
+    /// Changes the reading settings. The text is laid out again with the
+    /// same passage on screen.
+    public func setPreferences(_ preferences: ReaderPreferences) async {
+        guard preferences != self.preferences else { return }
+        self.preferences = preferences
+        await navigator?.apply(preferences)
+    }
+
     private func goToChapter(offset: Int) async -> Bool {
         guard let publication, let location, let index = publication.readingOrderIndex(of: location) else {
             return false
@@ -160,8 +205,14 @@ public final class ReaderController {
         guard publication.readingOrder.indices.contains(target),
               let locator = publication.locator(for: publication.readingOrder[target])
         else { return false }
-        self.location = locator
+        self.location = located(locator)
         return true
+    }
+
+    /// `locator` with its position filled in, once positions are ready.
+    private func located(_ locator: Locator) -> Locator {
+        guard let positions, let index = publication?.readingOrderIndex(of: locator) else { return locator }
+        return positions.locate(locator, inResource: index)
     }
 
     // MARK: - Navigators
@@ -176,8 +227,10 @@ public final class ReaderController {
 
     /// Records where a navigator moved to, unless its session is stale.
     func navigator(session: Int, didMoveTo locator: Locator) {
-        guard session == self.session, state == .ready, locator != location else { return }
-        location = locator
+        guard session == self.session, state == .ready else { return }
+        let moved = located(locator)
+        guard moved != location else { return }
+        location = moved
     }
 
     /// Whether the navigator can show every resource in the reading order.
@@ -201,4 +254,6 @@ protocol ReaderNavigator: AnyObject {
     func go(to locator: Locator) async -> Bool
     func goForward() async -> Bool
     func goBackward() async -> Bool
+    /// Applies new reading settings, keeping the same passage on screen.
+    func apply(_ preferences: ReaderPreferences) async
 }

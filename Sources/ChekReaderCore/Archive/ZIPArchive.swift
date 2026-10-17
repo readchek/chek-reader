@@ -51,6 +51,10 @@ package struct ZIPArchive: PublicationContainer {
         try read(path)
     }
 
+    package func length(of path: String) async -> Int64? {
+        entries[path]?.uncompressedSize
+    }
+
     /// The decompressed bytes of the entry at `path`.
     package func read(_ path: String) throws(ReaderError) -> Data {
         guard let entry = entries[path] else {

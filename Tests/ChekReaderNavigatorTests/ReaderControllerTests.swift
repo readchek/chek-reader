@@ -94,4 +94,30 @@ import Testing
         #expect(controller.publication == nil)
         #expect(await controller.goForward() == false)
     }
+
+    @Test func findsPositionsAfterOpening() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let controller = ReaderController()
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        for _ in 0..<1000 where controller.positions == nil {
+            await Task.yield()
+        }
+        let positions = try #require(controller.positions)
+        #expect(positions.count >= 2)
+        #expect(controller.location?.locations.position == 1)
+        #expect(controller.location?.locations.totalProgression == 0)
+
+        #expect(await controller.go(toPosition: positions.count))
+        #expect(controller.location?.locations.position == positions.count)
+        #expect(await controller.go(toPosition: positions.count + 1) == false)
+    }
+
+    @Test func keepsPreferencesWithoutAView() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let controller = ReaderController(preferences: ReaderPreferences(fontScale: 9))
+        #expect(controller.preferences.fontScale == ReaderPreferences.fontScaleRange.upperBound)
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        await controller.setPreferences(ReaderPreferences(fontScale: 1.25, theme: .sepia))
+        #expect(controller.preferences == ReaderPreferences(fontScale: 1.25, theme: .sepia))
+    }
 }
