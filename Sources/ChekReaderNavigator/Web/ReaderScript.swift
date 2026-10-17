@@ -78,7 +78,9 @@ struct ScriptPageState: Equatable, Sendable {
             value
         case let value as Double where value.isFinite && abs(value) < 1e9:
             Int(value)
-        case let value as NSNumber:
+        case let value as NSNumber where value.doubleValue.isFinite && abs(value.doubleValue) < 1e9:
+            // A Double that failed the check above also bridges to
+            // NSNumber, so the bounds are checked again here.
             value.intValue
         default:
             nil

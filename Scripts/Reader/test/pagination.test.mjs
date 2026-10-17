@@ -43,14 +43,15 @@ for (const dir of ["ltr", "rtl"]) {
         const page = await open({ dir });
         const state = await page.evaluate((options) => chekReader.paginate(options), options);
         assert.equal(state.page, 0);
-        assert.ok(state.pageCount > 5, `expected several pages, got ${state.pageCount}`);
+        const metrics = await page.evaluate(() => chekReader.metrics());
+        assert.ok(state.pageCount > 5, `expected several pages, got ${state.pageCount}: ${JSON.stringify(metrics)}`);
         assert.ok(await visible(page, "p0"));
 
         const turned = await page.evaluate(() => chekReader.goToPage(3, 2));
         assert.equal(turned.page, 3);
         assert.equal(turned.generation, 2);
         const offset = await page.evaluate(() => document.scrollingElement.scrollLeft);
-        assert.equal(Math.abs(offset), 3 * 400);
+        assert.equal(Math.abs(offset), 3 * 400, JSON.stringify(await page.evaluate(() => chekReader.metrics())));
 
         const last = await page.evaluate(() => chekReader.goToLastPage(3));
         assert.equal(last.page, state.pageCount - 1);
