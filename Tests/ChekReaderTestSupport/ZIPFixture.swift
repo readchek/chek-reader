@@ -2,30 +2,48 @@ import ChekReaderCore
 import Foundation
 
 /// Builds ZIP archives in tests, so no binary fixtures are committed.
-struct ZIPFixture {
-    struct Entry {
-        var name: String
-        var content: Data
+package struct ZIPFixture {
+    package struct Entry {
+        package var name: String
+        package var content: Data
         /// Raw DEFLATE bytes for `content`. The entry is stored when this is `nil`.
-        var deflated: Data?
-        var flags: UInt16 = 0x0800
+        package var deflated: Data?
+        package var flags: UInt16 = 0x0800
         /// Overrides the recorded checksum, to simulate corruption.
-        var crc32: UInt32?
+        package var crc32: UInt32?
         /// Overrides the recorded uncompressed size, to simulate a lying header.
-        var uncompressedSize: UInt32?
+        package var uncompressedSize: UInt32?
+
+        package init(
+            name: String,
+            content: Data,
+            deflated: Data? = nil,
+            flags: UInt16 = 0x0800,
+            crc32: UInt32? = nil,
+            uncompressedSize: UInt32? = nil
+        ) {
+            self.name = name
+            self.content = content
+            self.deflated = deflated
+            self.flags = flags
+            self.crc32 = crc32
+            self.uncompressedSize = uncompressedSize
+        }
     }
 
-    var entries: [Entry] = []
+    package var entries: [Entry] = []
 
-    mutating func add(_ name: String, _ content: String) {
+    package init() {}
+
+    package mutating func add(_ name: String, _ content: String) {
         entries.append(Entry(name: name, content: Data(content.utf8)))
     }
 
-    mutating func add(_ entry: Entry) {
+    package mutating func add(_ entry: Entry) {
         entries.append(entry)
     }
 
-    func data() -> Data {
+    package func data() -> Data {
         var archive = Data()
         var directory = Data()
         for entry in entries {
@@ -82,11 +100,11 @@ struct ZIPFixture {
 }
 
 extension Data {
-    mutating func append(le16 value: UInt16) {
+    package mutating func append(le16 value: UInt16) {
         append(contentsOf: [UInt8(value & 0xFF), UInt8(value >> 8)])
     }
 
-    mutating func append(le32 value: UInt32) {
+    package mutating func append(le32 value: UInt32) {
         append(contentsOf: (0..<4).map { UInt8(value >> (8 * $0) & 0xFF) })
     }
 }

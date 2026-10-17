@@ -1,5 +1,6 @@
 import ChekReaderCore
 import ChekReaderEPUB
+import ChekReaderTestSupport
 import Foundation
 import Testing
 
@@ -129,10 +130,22 @@ import Testing
         #expect(reason.contains("spine"))
     }
 
-    @Test func allowsFontObfuscation() async throws {
-        var files = EPUBFixture.epub3
-        files.append(("OEBPS/fonts/serif.otf", "font"))
-        files = files.map { name, content in
+    @Test(arguments: [Link.FontObfuscation.idpf, .adobe])
+    func deobfuscatesFonts(scheme: Link.FontObfuscation) async throws {
+        // Keys computed outside Swift: SHA-1 of the identifier for IDPF, and
+        // the identifier's UUID bytes for Adobe.
+        let key: [UInt8] = switch scheme {
+        case .idpf: Self.bytes(hex: "c12d11495401cf12256a830ecde8a78b17879cc3")
+        case .adobe: Self.bytes(hex: "12345678123412341234123456789abc")
+        }
+        let length = scheme == .idpf ? 1040 : 1024
+        let font = Data((0..<1300).map { UInt8($0 % 251) })
+        var stored = [UInt8](font)
+        for index in 0..<length {
+            stored[index] ^= key[index % key.count]
+        }
+
+        var files = EPUBFixture.epub3.map { name, content in
             guard name == "OEBPS/content.opf" else { return (name, content) }
             return (name, content.replacingOccurrences(
                 of: "</manifest>",
@@ -142,13 +155,23 @@ import Testing
         files.append(("META-INF/encryption.xml", """
         <encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
           <enc:EncryptedData>
-            <enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+            <enc:EncryptionMethod Algorithm="\(scheme.rawValue)"/>
             <enc:CipherData><enc:CipherReference URI="OEBPS/fonts/serif.otf"/></enc:CipherData>
           </enc:EncryptedData>
         </encryption>
         """))
-        let publication = try await open(files)
-        #expect(publication.link(for: "OEBPS/fonts/serif.otf")?.properties.obfuscation == .idpf)
+        let book = EPUBFixture.book(files, binary: [("OEBPS/fonts/serif.otf", Data(stored))])
+        let publication = try await EPUBModule.open(.data(book), format: .epub, limits: .default)
+
+        #expect(publication.link(for: "OEBPS/fonts/serif.otf")?.properties.obfuscation == scheme)
+        #expect(try await publication.data(at: "OEBPS/fonts/serif.otf") == font)
+    }
+
+    private static func bytes(hex: String) -> [UInt8] {
+        stride(from: 0, to: hex.count, by: 2).map { offset in
+            let start = hex.index(hex.startIndex, offsetBy: offset)
+            return UInt8(hex[start..<hex.index(start, offsetBy: 2)], radix: 16)!
+        }
     }
 
     @Test func reportsDRM() async {

@@ -1,4 +1,4 @@
-#if canImport(SwiftUI)
+#if canImport(SwiftUI) && canImport(WebKit)
 public import ChekReaderCore
 public import ChekReaderNavigator
 public import SwiftUI
@@ -21,10 +21,13 @@ public struct ReaderView: View {
     }
 
     public var body: some View {
-        ReaderStateView(state: controller.state)
-            .task(id: sourceID) {
-                try? await controller.open(source, at: initialLocation)
-            }
+        ZStack {
+            NavigatorView(controller: controller)
+            ReaderStateView(state: controller.state)
+        }
+        .task(id: sourceID) {
+            try? await controller.open(source, at: initialLocation)
+        }
     }
 
     private static func identity(of source: PublicationSource) -> String {
@@ -47,7 +50,7 @@ private struct ReaderStateView: View {
         case .idle, .opening, .closing:
             ProgressView()
         case .ready:
-            Color.clear
+            EmptyView()
         case .failed(let error):
             ContentUnavailableView {
                 Image(systemName: "book.closed")
@@ -60,7 +63,7 @@ private struct ReaderStateView: View {
                 }
             }
         case .closed:
-            Color.clear
+            EmptyView()
         }
     }
 }

@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB files parse into a `Publication`, but nothing renders yet, so `ReaderView` still reports that the format is not implemented. Other formats come after EPUB.
+> In development. EPUB publications open in `ReaderView`, one scrolling chapter at a time, while pagination is built. Other formats come after EPUB.
 
 ## Overview
 

@@ -92,9 +92,53 @@ public struct Publication: Sendable {
 
     /// The bytes of the resource at `href`. Any fragment is ignored.
     ///
-    /// Fonts with ``Link/Properties/obfuscation`` come back as stored, still obfuscated.
+    /// Obfuscated fonts come back de-obfuscated, ready to use.
     public func data(at href: String) async throws(ReaderError) -> Data {
         try ReaderError.checkCancellation()
         return try await container.data(at: Link(href: href).path)
+    }
+}
+
+extension Publication {
+    /// A position at the start of `link`, or at its fragment if it has one.
+    ///
+    /// Returns `nil` when the link's resource isn't in the reading order.
+    public func locator(for link: Link) -> Locator? {
+        let path = link.path
+        guard let resource = readingOrder.first(where: { $0.path == path }) else { return nil }
+        var fragments: [String] = []
+        if let hash = link.href.firstIndex(of: "#") {
+            fragments = [String(link.href[link.href.index(after: hash)...])]
+        }
+        return Locator(
+            href: path,
+            mediaType: resource.mediaType ?? MediaType.forPath(path),
+            title: link.title ?? title(forPath: path, in: tableOfContents),
+            locations: Locator.Locations(fragments: fragments, progression: fragments.isEmpty ? 0 : nil)
+        )
+    }
+
+    /// A position at the start of the reading order.
+    public var startLocator: Locator? {
+        readingOrder.first.flatMap(locator(for:))
+    }
+
+    /// The index in ``readingOrder`` of the resource a locator points into.
+    public func readingOrderIndex(of locator: Locator) -> Int? {
+        let path = Link(href: locator.href).path
+        return readingOrder.firstIndex { $0.path == path }
+    }
+
+    /// The first table of contents title for a resource, depth first.
+    private func title(forPath path: String, in links: [Link]) -> String? {
+        for link in links {
+            if link.path == path, let title = link.title {
+                return title
+            }
+            if let title = title(forPath: path, in: link.children) {
+                return title
+            }
+        }
+        return nil
     }
 }

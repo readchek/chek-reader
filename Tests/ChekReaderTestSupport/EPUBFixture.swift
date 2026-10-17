@@ -1,8 +1,8 @@
 import Foundation
 
 /// Builds small EPUBs in tests, so no books are committed.
-enum EPUBFixture {
-    static func container(rootfile: String = "OEBPS/content.opf") -> String {
+package enum EPUBFixture {
+    package static func container(rootfile: String = "OEBPS/content.opf") -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -13,7 +13,7 @@ enum EPUBFixture {
         """
     }
 
-    static func chapter(_ title: String) -> String {
+    package static func chapter(_ title: String) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <html xmlns="http://www.w3.org/1999/xhtml"><head><title>\(title)</title></head>
@@ -22,17 +22,20 @@ enum EPUBFixture {
     }
 
     /// An EPUB with a stored `mimetype` first, then `files` in order.
-    static func book(_ files: [(String, String)]) -> Data {
+    package static func book(_ files: [(String, String)], binary: [(String, Data)] = []) -> Data {
         var zip = ZIPFixture()
         zip.add("mimetype", "application/epub+zip")
         for (name, content) in files {
             zip.add(name, content)
         }
+        for (name, content) in binary {
+            zip.add(ZIPFixture.Entry(name: name, content: content))
+        }
         return zip.data()
     }
 
     /// A complete EPUB 3 book with nav, cover, series and accessibility metadata.
-    static let epub3: [(String, String)] = [
+    package static let epub3: [(String, String)] = [
         ("META-INF/container.xml", container()),
         ("OEBPS/content.opf", """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -111,7 +114,7 @@ enum EPUBFixture {
     ]
 
     /// An EPUB 2 book with an NCX, a guide and Calibre series metadata.
-    static let epub2: [(String, String)] = [
+    package static let epub2: [(String, String)] = [
         ("META-INF/container.xml", container(rootfile: "content.opf")),
         ("content.opf", """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -160,7 +163,7 @@ enum EPUBFixture {
     ]
 
     /// A minimal package document around `spine` and `manifest` entries.
-    static func minimalOPF(manifest: String, spine: String) -> String {
+    package static func minimalOPF(manifest: String, spine: String) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <package xmlns="http://www.idpf.org/2007/opf" version="3.0">

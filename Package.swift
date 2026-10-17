@@ -80,19 +80,26 @@ let package = Package(
             swiftSettings: swiftSettings
         ),
 
+        // Builds archives and books inside tests, so no fixtures are committed.
+        .target(
+            name: "ChekReaderTestSupport",
+            dependencies: ["ChekReaderCore"],
+            path: "Tests/ChekReaderTestSupport",
+            swiftSettings: swiftSettings
+        ),
         .testTarget(
             name: "ChekReaderCoreTests",
-            dependencies: ["ChekReaderCore"],
+            dependencies: ["ChekReaderCore", "ChekReaderTestSupport"],
             swiftSettings: swiftSettings
         ),
         .testTarget(
             name: "ChekReaderEPUBTests",
-            dependencies: ["ChekReaderCore", "ChekReaderEPUB"],
+            dependencies: ["ChekReaderCore", "ChekReaderEPUB", "ChekReaderTestSupport"],
             swiftSettings: swiftSettings
         ),
         .testTarget(
             name: "ChekReaderNavigatorTests",
-            dependencies: ["ChekReaderCore", "ChekReaderNavigator", "ChekReaderEPUB"],
+            dependencies: ["ChekReaderCore", "ChekReaderNavigator", "ChekReaderEPUB", "ChekReaderTestSupport"],
             swiftSettings: swiftSettings
         ),
         .testTarget(
