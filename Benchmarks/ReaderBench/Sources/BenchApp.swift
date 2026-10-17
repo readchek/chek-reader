@@ -45,6 +45,9 @@ struct BenchRunner {
     let host: UIViewController
 
     func run() async {
+        // The runner reads this output through a pipe; line-buffer it so
+        // progress shows up as it happens.
+        setvbuf(stdout, nil, _IOLBF, 0)
         let defaults = UserDefaults.standard
         let runs = defaults.integer(forKey: "runs") > 0 ? defaults.integer(forKey: "runs") : 5
         let turns = defaults.integer(forKey: "turns") > 0 ? defaults.integer(forKey: "turns") : 30

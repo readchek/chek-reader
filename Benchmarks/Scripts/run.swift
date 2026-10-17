@@ -8,6 +8,10 @@
 
 import Foundation
 
+// Line-buffer output so CI logs show progress while the script runs,
+// rather than everything at exit.
+setvbuf(stdout, nil, _IOLBF, 0)
+
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data("error: \(message)\n".utf8))
     exit(1)

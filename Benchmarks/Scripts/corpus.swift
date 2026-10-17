@@ -14,6 +14,10 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
+// Line-buffer output so CI logs show progress while the script runs,
+// rather than everything at exit.
+setvbuf(stdout, nil, _IOLBF, 0)
+
 struct Corpus: Decodable {
     struct Fixture: Decodable {
         struct Generator: Decodable {
@@ -178,6 +182,29 @@ func generateComic(pages: Int, width: Int, height: Int, to url: URL) {
     guard zip.terminationStatus == 0 else { fail("zip failed for \(url.path)") }
 }
 
+/// Downloads with a timeout, so a stalled server fails the run instead of hanging it.
+func download(_ remote: URL, to url: URL, id: String) {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = 60
+    configuration.timeoutIntervalForResource = 600
+    let done = DispatchSemaphore(value: 0)
+    nonisolated(unsafe) var failure: String?
+    let task = URLSession(configuration: configuration).downloadTask(with: remote) { location, response, error in
+        defer { done.signal() }
+        if let error {
+            failure = error.localizedDescription
+        } else if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
+            failure = "HTTP \(status)"
+        } else if let location {
+            try? FileManager.default.removeItem(at: url)
+            do { try FileManager.default.moveItem(at: location, to: url) } catch { failure = error.localizedDescription }
+        }
+    }
+    task.resume()
+    done.wait()
+    if let failure { fail("could not download \(id): \(failure)") }
+}
+
 let scriptDirectory = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent()
 let benchmarks = scriptDirectory.deletingLastPathComponent()
 let output = CommandLine.arguments.count > 1
@@ -197,11 +224,7 @@ for fixture in corpus.fixtures {
         if !exists || (fixture.sha256 != nil && (try? sha256(of: url)) != fixture.sha256) {
             print("Downloading \(fixture.id) from \(source)")
             guard let remote = URL(string: source) else { fail("bad URL for \(fixture.id)") }
-            do {
-                try Data(contentsOf: remote).write(to: url, options: .atomic)
-            } catch {
-                fail("could not download \(fixture.id): \(error.localizedDescription)")
-            }
+            download(remote, to: url, id: fixture.id)
         }
     } else if let generator = fixture.generator, !exists {
         print("Generating \(fixture.id)")

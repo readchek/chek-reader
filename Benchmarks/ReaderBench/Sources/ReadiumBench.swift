@@ -50,6 +50,7 @@ final class ReadiumBench: NSObject {
 
     func run(_ fixture: Fixture, url: URL, runs: Int, turns: Int) async {
         for run in 0..<runs {
+            print("BENCH \(Self.name) \(fixture.id) run \(run + 1)/\(runs)")
             do {
                 try await runOnce(fixture, url: url, turns: turns, measureRelayout: fixture.kind == "epub")
             } catch {

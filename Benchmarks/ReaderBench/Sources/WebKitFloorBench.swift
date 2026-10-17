@@ -43,6 +43,7 @@ final class WebKitFloorBench: NSObject {
 
         for (label, chapter) in chapters {
             for run in 0..<runs {
+                print("BENCH \(Self.name) \(fixture.id) \(label) run \(run + 1)/\(runs)")
                 do {
                     try await measure(fixture.id, label: label, href: chapter.href, bytes: chapter.bytes, handler: handler)
                 } catch {

@@ -22,6 +22,7 @@ final class PDFKitBench {
         let threadsAtStart = Measure.threadCount()
 
         for run in 0..<runs {
+            print("BENCH \(name) \(id) run \(run + 1)/\(runs)")
             let memoryBefore = Measure.footprintMB()
             let openStart = ContinuousClock.now
             guard var document = PDFDocument(url: url) else {
