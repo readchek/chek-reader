@@ -3,12 +3,12 @@ import Foundation
 
 /// The reason of the ``ReaderError/malformed(reason:)`` error `body` throws,
 /// or `nil` when it throws something else or nothing.
-func malformedReason(_ body: () throws(ReaderError) -> Void) -> String? {
+func malformedReason(_ body: () throws -> Void) -> String? {
     do {
         try body()
         return nil
     } catch {
-        if case .malformed(let reason) = error {
+        if case .malformed(let reason) = error as? ReaderError {
             return reason
         }
         return nil
