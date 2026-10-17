@@ -51,7 +51,7 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Restore build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Benchmarks/.build
           key: build-${{ hashFiles('Benchmarks/ReaderBench/project.yml', 'Benchmarks/ReaderBench/Sources/**') }}
@@ -90,7 +90,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bench"
           tar -xzf bench-tools.tgz -C "$RUNNER_TEMP/bench"
       - name: Restore corpus
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: Benchmarks/.corpus
           key: corpus-${{ matrix.fixture }}-${{ hashFiles('Benchmarks/corpus.json', 'Benchmarks/Scripts/corpus.swift') }}
