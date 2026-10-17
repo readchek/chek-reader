@@ -5,6 +5,12 @@
 // Needs Xcode 27 and XcodeGen (`brew install xcodegen`). Writes
 // <out>/results.json and <out>/summary.md; <out> defaults to
 // Benchmarks/Results/latest, which is not committed.
+//
+// CI splits the work across machines with two more options:
+//   --build-only        build the app into Benchmarks/.build and stop
+//   --app path          run an app built earlier instead of building
+//   --corpus-tool path  a compiled corpus.swift, which skips compiling the
+//                       script, a step that takes minutes on a fresh machine
 
 import Foundation
 
@@ -60,8 +66,13 @@ func run(_ arguments: [String], in directory: URL? = nil, capture: Bool = false)
 }
 
 var options: [String: String] = [:]
+var buildOnly = false
 var remaining = CommandLine.arguments.dropFirst()
 while let flag = remaining.popFirst() {
+    if flag == "--build-only" {
+        buildOnly = true
+        continue
+    }
     guard flag.hasPrefix("--"), let value = remaining.popFirst() else { fail("unexpected argument \(flag)") }
     options[String(flag.dropFirst(2))] = value
 }
@@ -71,6 +82,31 @@ let app = benchmarks.appendingPathComponent("ReaderBench")
 let derivedData = benchmarks.appendingPathComponent(".build")
 let out = URL(fileURLWithPath: options["out"] ?? benchmarks.appendingPathComponent("Results/latest").path)
 let bundleID = "page.chek.bench.ReaderBench"
+
+func build(destination: String) -> URL {
+    // project.yml bundles ReaderBench/Corpus for device runs, and XcodeGen
+    // keeps the reference even when the folder is missing, which fails the
+    // build. An empty folder bundles nothing.
+    do {
+        try FileManager.default.createDirectory(at: app.appendingPathComponent("Corpus"), withIntermediateDirectories: true)
+    } catch { fail("could not create ReaderBench/Corpus: \(error)") }
+    run(["xcodegen", "generate", "--spec", app.appendingPathComponent("project.yml").path])
+    run([
+        "xcodebuild", "build",
+        "-project", app.appendingPathComponent("ReaderBench.xcodeproj").path,
+        "-scheme", "ReaderBench",
+        "-configuration", "Release",
+        "-destination", destination,
+        "-derivedDataPath", derivedData.path,
+        "-quiet",
+    ])
+    return derivedData.appendingPathComponent("Build/Products/Release-iphonesimulator/ReaderBench.app")
+}
+
+if buildOnly {
+    print("Built \(build(destination: "generic/platform=iOS Simulator").path)")
+    exit(0)
+}
 
 // 1. Pick a simulator, the named one or the first iPhone on the newest iOS
 // runtime, and start booting it so it finishes while the app builds.
@@ -103,29 +139,18 @@ if device.state != "Booted" {
     run(["xcrun", "simctl", "boot", device.udid])
 }
 
-// 2. Corpus and project. The corpus stays out of the app bundle, so the
-// app installs quickly; it's copied into the app's Documents below.
+// 2. Corpus. It stays out of the app bundle, so the app installs quickly;
+// it's copied into the app's Documents below.
 let corpusDirectory = benchmarks.appendingPathComponent(".corpus")
-var corpusArguments = ["swift", benchmarks.appendingPathComponent("Scripts/corpus.swift").path, corpusDirectory.path]
+var corpusArguments = options["corpus-tool"].map { [$0] }
+    ?? ["swift", benchmarks.appendingPathComponent("Scripts/corpus.swift").path]
+corpusArguments.append(corpusDirectory.path)
 if let only = options["only"] { corpusArguments += ["--only", only] }
 run(corpusArguments)
-// project.yml bundles ReaderBench/Corpus for device runs, and XcodeGen keeps
-// the reference even when the folder is missing, which fails the build. An
-// empty folder bundles nothing.
-try FileManager.default.createDirectory(at: app.appendingPathComponent("Corpus"), withIntermediateDirectories: true)
-run(["xcodegen", "generate", "--spec", app.appendingPathComponent("project.yml").path])
 
-// 3. Build.
-run([
-    "xcodebuild", "build",
-    "-project", app.appendingPathComponent("ReaderBench.xcodeproj").path,
-    "-scheme", "ReaderBench",
-    "-configuration", "Release",
-    "-destination", "platform=iOS Simulator,id=\(device.udid)",
-    "-derivedDataPath", derivedData.path,
-    "-quiet",
-])
-let product = derivedData.appendingPathComponent("Build/Products/Release-iphonesimulator/ReaderBench.app")
+// 3. Build, unless CI built the app on another machine.
+let product = options["app"].map { URL(fileURLWithPath: $0) }
+    ?? build(destination: "platform=iOS Simulator,id=\(device.udid)")
 
 // 4. Install, hand over the corpus and run. The app exits when it's done.
 run(["xcrun", "simctl", "bootstatus", device.udid, "-b"])

@@ -28,7 +28,7 @@ swift Benchmarks/Scripts/run.swift --only war-and-peace --turns 60
 
 Results land in `Benchmarks/Results/latest`. The script boots the simulator while the app builds, and copies the corpus into the app's Documents folder after installing, so the large files never go through the app bundle.
 
-The `Benchmarks` workflow runs the same script on GitHub's Xcode 27 runners whenever this folder changes, and on demand from the Actions tab. Each fixture gets its own job on its own machine, so they run in parallel without competing for one processor, and the build is cached between runs. A last job merges the results; its summary appears on the run page and in the log. Because fixtures run on different machines, compare readers within a fixture, not across fixtures.
+The `Benchmarks` workflow runs the same script on GitHub's Xcode 27 runners whenever this folder changes, and on demand from the Actions tab. One job builds the app, with the build cached between runs. Then each fixture gets its own job on its own machine, so they run in parallel without competing for one processor. A last job merges the results; its summary appears on the run page and in the log. Because fixtures run on different machines, compare readers within a fixture, not across fixtures.
 
 To run on a physical device, write the corpus where the app bundles it with `swift Benchmarks/Scripts/corpus.swift Benchmarks/ReaderBench/Corpus`, then open the generated `ReaderBench.xcodeproj`, choose your team, and run the `ReaderBench` scheme. The app prints `BENCH_RESULTS` with the path of its results when it's done.
 

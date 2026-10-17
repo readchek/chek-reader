@@ -4,9 +4,10 @@ name: Benchmarks
 # check: simulator timings vary between runner machines, so results are for
 # comparing readers within one fixture and for spotting regressions.
 #
-# Each fixture runs in its own job on its own machine, so the jobs run in
-# parallel without competing for one machine's processor, which would skew
-# the timings. A last job merges the results into one summary.
+# One job builds the app. Then each fixture runs in its own job on its own
+# machine, so the jobs run in parallel without competing for one machine's
+# processor, which would skew the timings. A last job merges the results
+# into one summary.
 on:
   workflow_dispatch:
     inputs:
@@ -41,37 +42,68 @@ jobs:
       - id: list
         run: echo "fixtures=$(jq -c '[.fixtures[].id]' Benchmarks/corpus.json)" >> "$GITHUB_OUTPUT"
 
-  fixture:
-    name: ${{ matrix.fixture }}
-    needs: plan
+  build:
+    name: Build
     runs-on: xcode-27
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        fixture: ${{ fromJSON(needs.plan.outputs.fixtures) }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Restore corpus
-        uses: actions/cache@v5
-        with:
-          path: Benchmarks/.corpus
-          key: corpus-${{ matrix.fixture }}-${{ hashFiles('Benchmarks/corpus.json', 'Benchmarks/Scripts/corpus.swift') }}
       - name: Restore build
         uses: actions/cache@v5
         with:
           path: Benchmarks/.build
           key: build-${{ hashFiles('Benchmarks/ReaderBench/project.yml', 'Benchmarks/ReaderBench/Sources/**') }}
           restore-keys: build-
+      - name: Build the app
+        run: swift Benchmarks/Scripts/run.swift --build-only
+      # Compiling corpus.swift takes minutes on a fresh machine, so compile
+      # it once here instead of on every fixture's machine.
+      - name: Compile the corpus tool
+        run: swiftc -O Benchmarks/Scripts/corpus.swift -o Benchmarks/Scripts/corpus-tool
+      # A tarball keeps the app's symlinks and permissions, which artifacts drop.
+      - name: Package
+        run: tar -czf bench-tools.tgz -C Benchmarks/.build/Build/Products/Release-iphonesimulator ReaderBench.app -C "$PWD/Benchmarks/Scripts" corpus-tool
+      - uses: actions/upload-artifact@v5
+        with:
+          name: bench-tools
+          path: bench-tools.tgz
+          retention-days: 1
+
+  fixture:
+    name: ${{ matrix.fixture }}
+    needs: [plan, build]
+    runs-on: xcode-27
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: ${{ fromJSON(needs.plan.outputs.fixtures) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          name: bench-tools
+      - name: Unpack
+        run: |
+          mkdir -p "$RUNNER_TEMP/bench"
+          tar -xzf bench-tools.tgz -C "$RUNNER_TEMP/bench"
+      - name: Restore corpus
+        uses: actions/cache@v5
+        with:
+          path: Benchmarks/.corpus
+          key: corpus-${{ matrix.fixture }}-${{ hashFiles('Benchmarks/corpus.json', 'Benchmarks/Scripts/corpus.swift') }}
       - name: Run benchmarks
         env:
           RUNS: ${{ inputs.runs || '5' }}
           DEVICE: ${{ inputs.device }}
           FIXTURE: ${{ matrix.fixture }}
         run: |
+          # The corpus tool finds corpus.json next to itself, so it runs from Scripts.
+          cp "$RUNNER_TEMP/bench/corpus-tool" Benchmarks/Scripts/corpus-tool
           args=(--runs "$RUNS" --only "$FIXTURE" --out Benchmarks/Results/ci)
+          args+=(--app "$RUNNER_TEMP/bench/ReaderBench.app" --corpus-tool "$PWD/Benchmarks/Scripts/corpus-tool")
           if [ -n "$DEVICE" ]; then args+=(--device "$DEVICE"); fi
           swift Benchmarks/Scripts/run.swift "${args[@]}"
       - name: Upload results
@@ -97,6 +129,8 @@ jobs:
           pattern: results-*
           path: results
       - name: Merge and summarize
+        # The Swift image's default shell is sh, which has no arrays.
+        shell: bash
         run: |
           shopt -s nullglob
           files=(results/*/results.json)

@@ -13,3 +13,4 @@ DerivedData/
 /Benchmarks/Results/latest
 /Benchmarks/Results/ci
 /Benchmarks/.corpus
+/Benchmarks/Scripts/corpus-tool
