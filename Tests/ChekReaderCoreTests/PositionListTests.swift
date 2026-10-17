@@ -34,7 +34,8 @@ import Testing
         locator.locations.progression = 0.6
         let located = list.locate(locator, inResource: 0)
         #expect(located.locations.position == 3)
-        #expect(located.locations.totalProgression == 0.4)
+        // 2.4 positions of 6 is 0.4, give or take rounding.
+        #expect(abs((located.locations.totalProgression ?? 0) - 0.4) < 1e-9)
 
         locator.locations.progression = 1
         #expect(list.locate(locator, inResource: 0).locations.position == 4)
