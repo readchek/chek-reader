@@ -119,6 +119,7 @@ Sources/
   ChekReader/            Umbrella product
 Tests/                   Swift Testing suites per target
 Examples/ChekReaderDemo/ Read-only document viewer for iPhone, iPad and Mac
+Benchmarks/              Comparison with Readium, PDFKit and other readers (see Benchmarks/README.md)
 .github/workflows/       CI
 ```
 

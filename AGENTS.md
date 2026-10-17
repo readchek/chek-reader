@@ -32,6 +32,7 @@ Treat these as settled. Raise a change with the maintainer instead of working ar
 | `Sources/ChekReader` | Umbrella: re-exports and `ReaderFormats.registerDefaults()` |
 | `Tests/` | Swift Testing suites, one target per source target |
 | `Examples/ChekReaderDemo` | Read-only document viewer built on the SwiftUI `Document` protocol |
+| `Benchmarks` | Benchmark app and corpus comparing readers in the simulator; links Readium only to measure it. See its README |
 
 ## Build and test
 
