@@ -6,8 +6,9 @@ name: Benchmarks
 #
 # One job builds the app. Then each fixture runs in its own job on its own
 # machine, so the jobs run in parallel without competing for one machine's
-# processor, which would skew the timings. A last job merges the results
-# into one summary.
+# processor, which would skew the timings. On our own Mac (SELF_HOSTED_MAC,
+# see .github/RUNNERS.md) its one runner takes the fixtures one after another
+# for the same reason. A last job merges the results into one summary.
 on:
   workflow_dispatch:
     inputs:
@@ -34,6 +35,9 @@ permissions:
 jobs:
   plan:
     name: List fixtures
+    # Stays on GitHub's runners: it runs on the host rather than in a
+    # container, and our Linux runner only takes container jobs (see
+    # .github/RUNNERS.md).
     runs-on: ubuntu-latest
     outputs:
       fixtures: ${{ steps.list.outputs.fixtures }}
@@ -44,7 +48,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: xcode-27
+    runs-on: ${{ vars.SELF_HOSTED_MAC == 'true' && github.event.pull_request.head.repo.fork != true && fromJSON('["self-hosted","chek-mac"]') || 'xcode-27' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -74,7 +78,7 @@ jobs:
   fixture:
     name: ${{ matrix.fixture }}
     needs: [plan, build]
-    runs-on: xcode-27
+    runs-on: ${{ vars.SELF_HOSTED_MAC == 'true' && github.event.pull_request.head.repo.fork != true && fromJSON('["self-hosted","chek-mac"]') || 'xcode-27' }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -120,7 +124,7 @@ jobs:
     # Summarize whatever fixtures finished, but not a run that a newer push
     # cancelled, which has nothing to merge.
     if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SELF_HOSTED_LINUX == 'true' && github.event.pull_request.head.repo.fork != true && fromJSON('["self-hosted","chek-linux"]') || 'ubuntu-latest' }}
     container: swift:6.4-noble
     steps:
       - uses: actions/checkout@v7
