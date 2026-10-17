@@ -32,6 +32,7 @@ Treat these as settled. Raise a change with the maintainer instead of working ar
 | `Sources/ChekReader` | Umbrella: re-exports and `ReaderFormats.registerDefaults()` |
 | `Tests/` | Swift Testing suites, one target per source target |
 | `Examples/ChekReaderDemo` | Read-only document viewer built on the SwiftUI `Document` protocol |
+| `Scripts/Reader` | TypeScript page layout script. It compiles into `Sources/ChekReaderNavigator/Resources/reader.js`, which is committed; CI fails if the two differ |
 | `Benchmarks` | Benchmark app and corpus comparing readers in the simulator; links Readium only to measure it. See its README |
 
 ## Build and test
@@ -44,6 +45,8 @@ xcodebuild build -scheme ChekReader-Package -destination 'generic/platform=iOS S
 xcodebuild build -project Examples/ChekReaderDemo/ChekReaderDemo.xcodeproj -scheme ChekReaderDemo \
   -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO
 ```
+
+After changing `Scripts/Reader`, run `npm ci && npm test` there and commit the rebuilt `reader.js`.
 
 CI runs all of these, and also builds and tests the package on Linux. Keep the core, format and navigator targets free of UIKit, AppKit and SwiftUI so the Linux job keeps passing. Wrap SwiftUI code in `#if canImport(SwiftUI)`.
 

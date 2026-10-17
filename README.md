@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB publications open in `ReaderView`, one scrolling chapter at a time, while pagination is built. Other formats come after EPUB.
+> In development. EPUB publications open in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. Other formats come after EPUB.
 
 ## Overview
 
@@ -131,6 +131,7 @@ Sources/
   ChekReader/            Umbrella product
 Tests/                   Swift Testing suites per target
 Examples/ChekReaderDemo/ Read-only document viewer for iPhone, iPad and Mac
+Scripts/Reader/          TypeScript page layout script, compiled into ChekReaderNavigator
 Benchmarks/              Comparison with Readium, PDFKit and other readers (see Benchmarks/README.md)
 .github/workflows/       CI
 ```
@@ -143,6 +144,15 @@ You can work without a phone: the demo app runs natively on an Apple Silicon Mac
 swift test                                                  # core, formats and navigator, on macOS or Linux
 xcodebuild test -scheme ChekReader-Package -destination 'platform=macOS'
 open Examples/ChekReaderDemo/ChekReaderDemo.xcodeproj       # demo app
+```
+
+The page layout script is TypeScript in `Scripts/Reader`, compiled into `Sources/ChekReaderNavigator/Resources/reader.js`, which is committed so the package builds without Node. After changing the script, rebuild it and run its browser tests:
+
+```sh
+cd Scripts/Reader
+npm ci
+npx playwright install webkit
+npm test                                                    # compiles, then tests in WebKit
 ```
 
 See [AGENTS.md](AGENTS.md) for the conventions contributors and coding agents follow.

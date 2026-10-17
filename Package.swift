@@ -57,6 +57,8 @@ let package = Package(
         .target(
             name: "ChekReaderNavigator",
             dependencies: ["ChekReaderCore"],
+            // Compiled from Scripts/Reader; CI checks it matches the source.
+            resources: [.copy("Resources/reader.js")],
             swiftSettings: swiftSettings
         ),
         .target(

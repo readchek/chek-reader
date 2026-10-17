@@ -14,3 +14,6 @@ DerivedData/
 /Benchmarks/Results/ci
 /Benchmarks/.corpus
 /Benchmarks/Scripts/corpus-tool
+
+# The reader script's build tools
+node_modules/
