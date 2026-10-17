@@ -1,6 +1,8 @@
 name: Benchmarks
 
-# Runs the reader comparison in the iOS Simulator. It isn't a required
+# Runs the reader comparison in the iOS Simulator, only when started from the
+# Actions tab: a full run takes long enough that running it on every change
+# to Benchmarks held up the work it was meant to measure. It isn't a required
 # check: simulator timings vary between runner machines, so results are for
 # comparing readers within one fixture and for spotting regressions.
 #
@@ -18,12 +20,6 @@ on:
       device:
         description: Simulator name, such as iPhone 17 Pro (default is the first iPhone on the newest runtime)
         default: ""
-  push:
-    paths:
-      - "Benchmarks/**"
-      - "!Benchmarks/Results/**"
-      - "!Benchmarks/README.md"
-      - ".github/workflows/benchmarks.yml"
 
 concurrency:
   group: benchmarks-${{ github.ref }}
