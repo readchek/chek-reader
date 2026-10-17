@@ -48,7 +48,7 @@ xcodebuild build -project Examples/ChekReaderDemo/ChekReaderDemo.xcodeproj -sche
 
 After changing `Scripts/Reader`, run `npm ci && npm test` there and commit the rebuilt `reader.js`.
 
-CI runs all of these, and also builds and tests the package on Linux. Keep the core, format and navigator targets free of UIKit, AppKit and SwiftUI so the Linux job keeps passing. Wrap SwiftUI code in `#if canImport(SwiftUI)`.
+CI runs all of these, and also builds and tests the package on Linux. It can run on the maintainers' own Mac and Linux machines, switched by repository variables; see `.github/RUNNERS.md` before changing where a job runs. Keep the core, format and navigator targets free of UIKit, AppKit and SwiftUI so the Linux job keeps passing. Wrap SwiftUI code in `#if canImport(SwiftUI)`.
 
 Before you push, build and test whatever you changed. If your environment can't build a target, say so in the PR rather than guessing.
 

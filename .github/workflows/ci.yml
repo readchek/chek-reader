@@ -11,10 +11,15 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Jobs run on the maintainers' own machines when the SELF_HOSTED_LINUX or
+# SELF_HOSTED_MAC repository variable is "true", and on GitHub's runners
+# otherwise. Pull requests from forks always use GitHub's runners, so code
+# from outside the repository never runs on our machines. See
+# .github/RUNNERS.md.
 jobs:
   linux:
     name: Core on Linux
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SELF_HOSTED_LINUX == 'true' && github.event.pull_request.head.repo.fork != true && fromJSON('["self-hosted","chek-linux"]') || 'ubuntu-latest' }}
     container: swift:6.4-noble
     steps:
       - uses: actions/checkout@v7
@@ -25,7 +30,7 @@ jobs:
 
   apple:
     name: Package and demo on Apple platforms
-    runs-on: xcode-27
+    runs-on: ${{ vars.SELF_HOSTED_MAC == 'true' && github.event.pull_request.head.repo.fork != true && fromJSON('["self-hosted","chek-mac"]') || 'xcode-27' }}
     steps:
       - uses: actions/checkout@v7
       - name: Check Xcode

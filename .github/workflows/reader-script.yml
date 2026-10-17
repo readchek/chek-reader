@@ -24,6 +24,8 @@ jobs:
   script:
     name: Reader script
     if: github.event_name == 'push' || !github.event.pull_request.draft
+    # Stays on GitHub's runners: installing the browsers' system packages
+    # needs root on the host, which our own Linux runner doesn't give jobs.
     runs-on: ubuntu-latest
     defaults:
       run:
