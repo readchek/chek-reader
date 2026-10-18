@@ -62,6 +62,8 @@ final class WebNavigator: ReaderNavigator {
     @ObservationIgnored private let dataStore = WKWebsiteDataStore.nonPersistent()
     /// Increases with every navigation, so a superseded one is dropped.
     @ObservationIgnored private var generation = 0
+    /// Loads the resources next to the one on screen.
+    @ObservationIgnored private var preloading: Task<Void, Never>?
 
     private static let world = WKContentWorld.world(name: ReaderScript.contentWorld)
 
@@ -204,10 +206,17 @@ final class WebNavigator: ReaderNavigator {
         resourceIndex = slot.resource
         report(slot)
 
-        // The next resources first, since reading usually goes forward.
-        for neighbor in [slot.resource + 1, slot.resource + 2, slot.resource - 1]
-        where publication.readingOrder.indices.contains(neighbor) {
-            _ = self.slot(for: neighbor)
+        // The next resources first, since reading usually goes forward. One
+        // at a time, because new pages starting together slow each other
+        // down, and the next chapter is the one the reader needs soonest.
+        let origin = slot.resource
+        let neighbors = [origin + 1, origin + 2, origin - 1].filter { publication.readingOrder.indices.contains($0) }
+        preloading?.cancel()
+        preloading = Task { [weak self] in
+            for neighbor in neighbors {
+                guard let self, !Task.isCancelled, self.resourceIndex == origin else { return }
+                _ = await self.slot(for: neighbor).ready?.value
+            }
         }
     }
 
