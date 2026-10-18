@@ -30,6 +30,7 @@ final class ChekReaderBench {
             print("BENCH \(Self.name) \(fixture.id) run \(run + 1)/\(runs)")
             do {
                 try await runOnce(fixture, url: url, turns: turns)
+                try await runPaced(fixture, url: url, turns: turns)
             } catch {
                 recorder.fail("\(Self.name) \(fixture.id) run \(run): \(error)")
             }
@@ -122,6 +123,40 @@ final class ChekReaderBench {
         await Measure.settle(2)
         recorder.add(name, id, "memoryAfterClose", "MB", Measure.footprintMB() - memoryBefore, note: "growth that stays after closing; app process only")
         recorder.add(name, id, "threadsAfterClose", "count", Double(Measure.threadCount()))
+    }
+
+    /// Turns pages as a reader would, about a second each, in a session of
+    /// its own so it starts as cold as ``runOnce(_:url:turns:)``. Back-to-back
+    /// turns reach the next chapter before anything has had time to load
+    /// ahead, so they only measure the cold path; these measure the warm one.
+    private func runPaced(_ fixture: Fixture, url: URL, turns: Int) async throws {
+        let id = fixture.id
+        let name = Self.name
+        var controller: ReaderController? = ReaderController()
+        try await controller!.open(.file(url))
+
+        changed.reset()
+        watch { _ = controller!.location }
+        var hosting: UIHostingController<NavigatorView>? = UIHostingController(rootView: NavigatorView(controller: controller!))
+        attach(hosting!)
+        guard await changed.wait(timeout: 60) else {
+            throw BenchError("paced: no location within 60 s")
+        }
+
+        for _ in 0..<turns {
+            await Measure.settle(1)
+            let hrefBefore = controller!.location?.href
+            let (moved, turnMs) = await Measure.time { await controller!.goForward() }
+            guard moved else { break }
+            let crossed = fixture.kind == "epub" && controller!.location?.href != hrefBefore
+            recorder.add(name, id, crossed ? "pageTurnNewChapterPaced" : "pageTurnPaced", "ms", turnMs, note: "goForward until it returns, 1 s after the previous turn")
+        }
+
+        detach(hosting!)
+        hosting = nil
+        await controller!.close()
+        controller = nil
+        await Measure.settle(2)
     }
 
     /// Fires ``changed`` the next time a property `read` touches is about to change.
