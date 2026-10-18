@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. CBZ and CBT comics show a page at a time too, with `ComicInfo.xml` metadata and right-to-left manga. Plain text and Markdown are converted to XHTML and read like EPUB, split into chapters at their headings, and so are FictionBooks, plain or zipped, with their embedded images and notes. The other formats are on their way.
+> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. CBZ and CBT comics show a page at a time too, with `ComicInfo.xml` metadata and right-to-left manga. Plain text and Markdown are converted to XHTML and read like EPUB, split into chapters at their headings, and so are FictionBooks, plain or zipped, with their embedded images and notes. DRM-free MOBI and AZW3 books open the same ways, rebuilt into HTML documents. CBR and CB7, in the optional archives add-on, are still on their way.
 
 ## Overview
 
@@ -106,7 +106,7 @@ Publications can come from several sources:
 .pages(myPageSource)                        // page images streamed one at a time
 ```
 
-Formats that keep everything in one file, such as PDF, download the whole file from a URL, and ask a provider for it with the empty href `PublicationSource.wholePublicationHref`.
+Formats that keep everything in one file, such as PDF and MOBI, download the whole file from a URL, and ask a provider for it with the empty href `PublicationSource.wholePublicationHref`.
 
 To read a publication's structure without showing it, for example to import a library, open it directly:
 
