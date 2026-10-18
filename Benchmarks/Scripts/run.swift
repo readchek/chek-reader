@@ -1,6 +1,6 @@
 // Builds the benchmark app, runs it in the iOS Simulator and writes the results.
 //
-//   swift Benchmarks/Scripts/run.swift [--device "iPhone 17 Pro"] [--runs 5] [--turns 30] [--only id,id] [--out dir]
+//   swift Benchmarks/Scripts/run.swift [--device "iPhone 17 Pro"] [--runs 5] [--turns 30] [--only id,id] [--readers chek,readium,pdfkit,webkit] [--out dir]
 //
 // Needs Xcode 27 and XcodeGen (`brew install xcodegen`). Writes
 // <out>/results.json and <out>/summary.md; <out> defaults to
@@ -167,7 +167,7 @@ try FileManager.default.copyItem(at: corpusDirectory, to: installedCorpus)
 // use; an app built on another CI machine has been seen to look in a
 // different container than get_app_container reports.
 var launch = ["xcrun", "simctl", "launch", "--console", "--terminate-running-process", device.udid, bundleID, "-corpus", corpusDirectory.path]
-for key in ["runs", "turns", "only"] {
+for key in ["runs", "turns", "only", "readers"] {
     if let value = options[key] { launch += ["-\(key)", value] }
 }
 let console = run(launch, capture: true)

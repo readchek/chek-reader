@@ -2,9 +2,10 @@
 #   xcodegen generate --spec Benchmarks/ReaderBench/project.yml
 # The generated ReaderBench.xcodeproj is not committed.
 #
-# The app links each reader it compares (today: Readium and the system
-# frameworks) and runs the scenarios in BenchRunner on launch. It is a
-# comparison tool only; nothing in the Chek Reader package depends on it.
+# The app links each reader it compares (Chek Reader from this checkout,
+# Readium and the system frameworks) and runs the scenarios in BenchRunner
+# on launch. It is a comparison tool only; nothing in the Chek Reader
+# package depends on it.
 name: ReaderBench
 options:
   bundleIdPrefix: page.chek.bench
@@ -14,6 +15,8 @@ packages:
   Readium:
     url: https://github.com/readium/swift-toolkit
     exactVersion: 3.11.1
+  ChekReader:
+    path: ../..
 targets:
   ReaderBench:
     type: application
@@ -25,6 +28,8 @@ targets:
         buildPhase: resources
         optional: true
     dependencies:
+      - package: ChekReader
+        product: ChekReader
       - package: Readium
         product: ReadiumShared
       - package: Readium
