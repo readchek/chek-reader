@@ -36,7 +36,7 @@ Chek Reader's "relayout, page on screen" is `relayoutLocationUpdate`, the time u
 
 ## What stands out
 
-- **Turning into a new chapter takes 1.9 to 2.4 s** (median `pageTurnNewChapter`), close to WebKit's cold load of a chapter in a new web view. The run turns pages back to back, faster than the next chapter preloads, so War and Peace, where 90 of 150 turns cross a chapter, is slow on almost every turn. Readium turns into the next chapter in well under a second.
+- **Turning into a new chapter takes 1.9 to 2.4 s** (median `pageTurnNewChapter`), close to WebKit's cold load of a chapter in a new web view. The run turns pages back to back, faster than the next chapter preloads, so War and Peace, where 90 of 150 turns cross a chapter, is slow on almost every turn. Readium doesn't split its turns this way, but 95% of its War and Peace turns finish within 612 ms.
 - **PDF and comics are ahead of Readium on every timing.** Comics open and show their first page 30 times sooner and keep no memory after closing.
 - **Positions for War and Peace take 122 ms**, against Readium's 16 ms. They're built in the background, so they don't hold up opening.
 - An earlier run on the same code (39136365717) crashed on the fifth Children's Literature run without a crash report. This run didn't crash. The workflow now prints crash reports, so a repeat will show where it failed.
