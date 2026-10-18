@@ -134,6 +134,20 @@ final class ChekReaderBench {
         let name = Self.name
         var controller: ReaderController? = ReaderController()
         try await controller!.open(.file(url))
+        guard var bare = controller!.publication?.startLocator else {
+            throw BenchError("no reading order")
+        }
+        // As in runOnce, so the first change seen is the navigator's report
+        // from a laid-out page, not positions arriving or the start location.
+        if controller!.positions == nil {
+            changed.reset()
+            watch { _ = controller!.positions }
+            guard await changed.wait(timeout: 60), controller!.positions != nil else {
+                throw BenchError("paced: positions not ready within 60 s")
+            }
+        }
+        bare.locations = Locator.Locations()
+        await controller!.go(to: bare)
 
         changed.reset()
         watch { _ = controller!.location }
@@ -143,11 +157,14 @@ final class ChekReaderBench {
             throw BenchError("paced: no location within 60 s")
         }
 
-        for _ in 0..<turns {
+        for turn in 0..<turns {
             await Measure.settle(1)
             let hrefBefore = controller!.location?.href
             let (moved, turnMs) = await Measure.time { await controller!.goForward() }
-            guard moved else { break }
+            guard moved else {
+                recorder.fail("\(name) \(id): paced turn \(turn + 1) didn't move")
+                break
+            }
             let crossed = fixture.kind == "epub" && controller!.location?.href != hrefBefore
             recorder.add(name, id, crossed ? "pageTurnNewChapterPaced" : "pageTurnPaced", "ms", turnMs, note: "goForward until it returns, 1 s after the previous turn")
         }
