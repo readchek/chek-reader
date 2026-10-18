@@ -51,6 +51,10 @@ public protocol ResourceProvider: Sendable {
     /// The publication's format, when the provider knows it.
     var format: ReaderFormat? { get }
     /// The bytes of the resource at `href`, relative to the publication.
+    ///
+    /// Formats that keep the whole publication in one file, such as PDF,
+    /// plain text, FB2 and MOBI, ask for the whole file with
+    /// ``PublicationSource/wholePublicationHref``, an empty href.
     func data(at href: String) async throws -> Data
 }
 

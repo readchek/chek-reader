@@ -100,8 +100,13 @@ let package = Package(
             swiftSettings: swiftSettings
         ),
         .testTarget(
+            name: "ChekReaderPDFTests",
+            dependencies: ["ChekReaderCore", "ChekReaderPDF", "ChekReaderTestSupport"],
+            swiftSettings: swiftSettings
+        ),
+        .testTarget(
             name: "ChekReaderNavigatorTests",
-            dependencies: ["ChekReaderCore", "ChekReaderNavigator", "ChekReaderEPUB", "ChekReaderTestSupport"],
+            dependencies: ["ChekReaderCore", "ChekReaderNavigator", "ChekReaderEPUB", "ChekReaderPDF", "ChekReaderTestSupport"],
             swiftSettings: swiftSettings
         ),
         .testTarget(

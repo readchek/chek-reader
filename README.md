@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. Other formats come after EPUB.
+> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. The other formats are on their way.
 
 ## Overview
 
@@ -105,6 +105,8 @@ Publications can come from several sources:
 .provider(myProvider)                       // resources the app supplies, such as decrypted ones
 .pages(myPageSource)                        // page images streamed one at a time
 ```
+
+Formats that keep everything in one file, such as PDF, download the whole file from a URL, and ask a provider for it with the empty href `PublicationSource.wholePublicationHref`.
 
 To read a publication's structure without showing it, for example to import a library, open it directly:
 

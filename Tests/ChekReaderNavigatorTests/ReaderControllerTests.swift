@@ -77,7 +77,9 @@ import Testing
         ReaderFormats.register(EPUBModule.self)
         let controller = ReaderController()
         let first = Task { try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub2))) }
-        while controller.state != .opening {
+        // The first open can run to `.ready` between two checks, so wait
+        // only until it has started; waiting for `.opening` could spin forever.
+        while controller.state == .idle {
             await Task.yield()
         }
         try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
