@@ -245,6 +245,8 @@ enum NavigatorKind: Equatable, Sendable {
     case web
     /// PDFKit.
     case pdf
+    /// Page images decoded with ImageIO, for comics.
+    case images
 
     /// The kind that can show every resource in `publication`'s reading
     /// order, or `nil` when none can.
@@ -253,6 +255,9 @@ enum NavigatorKind: Equatable, Sendable {
         guard !types.isEmpty else { return nil }
         if types == ["application/pdf"] {
             self = .pdf
+        } else if [.cbz, .cbt, .cbr, .cb7].contains(publication.format) {
+            // Streamed pages have no media type until they're read.
+            self = .images
         } else if types.allSatisfy({ MediaType.isHTML($0) || $0.hasPrefix("image/") }) {
             self = .web
         } else {

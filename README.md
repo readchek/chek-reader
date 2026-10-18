@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. The other formats are on their way.
+> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. CBZ and CBT comics show a page at a time too, with `ComicInfo.xml` metadata and right-to-left manga. The other formats are on their way.
 
 ## Overview
 

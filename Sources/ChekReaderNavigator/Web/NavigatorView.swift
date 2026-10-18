@@ -25,6 +25,9 @@ public struct NavigatorView: View {
             case .pdf:
                 PDFNavigatorView(controller: controller)
                     .id(controller.session)
+            case .images:
+                ImageNavigatorView(controller: controller)
+                    .id(controller.session)
             case nil:
                 EmptyView()
             }
