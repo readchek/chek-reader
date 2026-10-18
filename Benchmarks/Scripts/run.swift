@@ -170,11 +170,22 @@ var launch = ["xcrun", "simctl", "launch", "--console", "--terminate-running-pro
 for key in ["runs", "turns", "only", "readers"] {
     if let value = options[key] { launch += ["-\(key)", value] }
 }
+// Cleared first, so a results file found below is always from this launch.
+let containerResults = URL(fileURLWithPath: container).appendingPathComponent("Documents/results.json")
+try? FileManager.default.removeItem(at: containerResults)
 let console = run(launch, capture: true)
-guard let line = console.split(separator: "\n").first(where: { $0.hasPrefix("BENCH_RESULTS ") }) else {
+let resultsPath: String
+if let line = console.split(separator: "\n").first(where: { $0.hasPrefix("BENCH_RESULTS ") }) {
+    resultsPath = String(line.dropFirst("BENCH_RESULTS ".count))
+} else if FileManager.default.fileExists(atPath: containerResults.path) {
+    // The app writes its results before printing the line, so if the console
+    // lost the line as the app exited, they're still in its container. An
+    // app that stopped before writing them still fails below.
+    print("warning: no BENCH_RESULTS line; using \(containerResults.path), which this launch wrote")
+    resultsPath = containerResults.path
+} else {
     fail("the app finished without writing results")
 }
-let resultsPath = String(line.dropFirst("BENCH_RESULTS ".count))
 
 // 5. Collect and summarize.
 try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
