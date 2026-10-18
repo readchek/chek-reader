@@ -6,10 +6,15 @@ import WebKit
 
 /// Shows reflowable publications a page at a time.
 ///
-/// Each resource loads into its own `WebPage`, where ``ReaderScript`` lays
-/// it out in columns, one screen per page. The resources before and after
-/// the one on screen stay loaded off screen, so turning into the next
+/// Each resource loads into a `WebPage`, where ``ReaderScript`` lays it out
+/// in columns, one screen per page. The resource before the one on screen
+/// and the two after it stay loaded off screen, so turning into the next
 /// chapter shows it at once instead of waiting for a load.
+///
+/// Pages are reused. Creating one starts a web content process, which takes
+/// seconds in the simulator, while loading another resource into a running
+/// page is quick. So the navigator creates at most ``maximumSlots`` pages and
+/// loads each new resource into the one holding the resource furthest away.
 ///
 /// Resources come from the publication through ``PublicationSchemeHandler``,
 /// and every navigation is checked by ``NavigationDecider``, so content can
@@ -17,23 +22,32 @@ import WebKit
 @MainActor
 @Observable
 final class WebNavigator: ReaderNavigator {
-    /// One loaded resource.
+    /// One web page, and the resource loaded into it.
     @MainActor
     final class Slot: Identifiable {
-        /// The resource's reading order index.
+        /// Stays the same while the page is reused, so the view showing it does too.
         let id: Int
         let page: WebPage
+        /// The reading order index of the resource loaded into the page.
+        fileprivate(set) var resource: Int
+        /// Increases each time the page is given another resource, so work
+        /// for the one before is dropped.
+        fileprivate var assignment = 0
         /// Finishes when the resource has loaded and been laid out.
         var ready: Task<Bool, Never>?
         var state: ScriptPageState?
 
-        init(id: Int, page: WebPage) {
+        init(id: Int, page: WebPage, resource: Int) {
             self.id = id
             self.page = page
+            self.resource = resource
         }
     }
 
-    /// The loaded resources, in reading order.
+    /// The most pages kept: the resource on screen, the one before and two after.
+    static let maximumSlots = 4
+
+    /// The web pages, in the order they were created.
     private(set) var slots: [Slot] = []
     /// The reading order index of the resource on screen.
     private(set) var resourceIndex: Int?
@@ -75,7 +89,7 @@ final class WebNavigator: ReaderNavigator {
         generation += 1
         let current = generation
         let slot = slot(for: index)
-        guard await slot.ready?.value == true, current == generation else { return false }
+        guard await isReady(slot, for: index), current == generation else { return false }
 
         // The most precise part of the locator that still matches wins: an
         // element id, then the text, then how far through the resource.
@@ -95,7 +109,7 @@ final class WebNavigator: ReaderNavigator {
             let progression = locator.locations.progression ?? 0
             state = await call("chekReader.goToProgression(progression, generation)", ["progression": progression], in: slot)
         }
-        guard let state, current == generation else { return false }
+        guard let state, current == generation, slot.resource == index else { return false }
         show(slot, state: state)
         return true
     }
@@ -110,7 +124,7 @@ final class WebNavigator: ReaderNavigator {
 
     private func perform(_ command: PageCommand) async -> Bool {
         guard let slot = currentSlot, let state = slot.state else { return false }
-        let position = PagePosition(resource: slot.id, page: state.page, pageCount: state.pageCount)
+        let position = PagePosition(resource: slot.resource, page: state.page, pageCount: state.pageCount)
         let turn: PageTurn
         switch command {
         case .forward:
@@ -136,9 +150,11 @@ final class WebNavigator: ReaderNavigator {
             generation += 1
             let current = generation
             let next = self.slot(for: index)
-            guard await next.ready?.value == true, current == generation else { return false }
+            guard await isReady(next, for: index), current == generation else { return false }
             let script = atEnd ? "chekReader.goToLastPage(generation)" : "chekReader.goToPage(0, generation)"
-            guard let turned = await call(script, [:], in: next), current == generation else { return false }
+            guard let turned = await call(script, [:], in: next), current == generation, next.resource == index else {
+                return false
+            }
             show(next, state: turned)
             return true
         case .none:
@@ -152,16 +168,18 @@ final class WebNavigator: ReaderNavigator {
         let current = generation
         let arguments = ReaderScript.preferenceArguments(preferences)
         // The page on screen first, so the reader sees the change soonest.
-        let ordered = slots.sorted { ($0.id == resourceIndex ? 0 : 1) < ($1.id == resourceIndex ? 0 : 1) }
+        let ordered = slots.sorted { ($0.resource == resourceIndex ? 0 : 1) < ($1.resource == resourceIndex ? 0 : 1) }
         for slot in ordered {
-            let ready = await slot.ready?.value == true
+            let resource = slot.resource
+            let ready = await isReady(slot, for: resource)
             guard current == generation else { return }
             guard ready else { continue }
             guard let state = await call("chekReader.setPreferences({ fontScale, theme }, generation)", arguments, in: slot) else {
                 continue
             }
+            guard slot.resource == resource else { continue }
             slot.state = state
-            if slot.id == resourceIndex {
+            if slot.resource == resourceIndex {
                 report(slot)
             }
         }
@@ -176,51 +194,73 @@ final class WebNavigator: ReaderNavigator {
     // MARK: - Slots
 
     private var currentSlot: Slot? {
-        slots.first { $0.id == resourceIndex }
+        slots.first { $0.resource == resourceIndex }
     }
 
-    /// Puts `slot` on screen, reports where the reader is, and keeps only
-    /// the resources next to it loaded.
+    /// Puts `slot` on screen, reports where the reader is, and starts
+    /// loading the resources next to it.
     private func show(_ slot: Slot, state: ScriptPageState) {
         slot.state = state
-        resourceIndex = slot.id
+        resourceIndex = slot.resource
         report(slot)
 
-        let keep = (slot.id - 1)...(slot.id + 1)
-        slots.removeAll { !keep.contains($0.id) }
-        for neighbor in [slot.id + 1, slot.id - 1] where publication.readingOrder.indices.contains(neighbor) {
+        // The next resources first, since reading usually goes forward.
+        for neighbor in [slot.resource + 1, slot.resource + 2, slot.resource - 1]
+        where publication.readingOrder.indices.contains(neighbor) {
             _ = self.slot(for: neighbor)
         }
     }
 
     private func report(_ slot: Slot) {
-        guard let state = slot.state, var locator = publication.locator(for: publication.readingOrder[slot.id]) else {
+        guard let state = slot.state, var locator = publication.locator(for: publication.readingOrder[slot.resource]) else {
             return
         }
         locator.locations.fragments = []
-        locator.locations.progression = PagePosition(resource: slot.id, page: state.page, pageCount: state.pageCount).progression
+        locator.locations.progression = PagePosition(resource: slot.resource, page: state.page, pageCount: state.pageCount).progression
         locator.text = state.text
         controller?.navigator(session: session, didMoveTo: locator)
     }
 
+    /// Whether `slot` has loaded and laid out `resource`, waiting for it if
+    /// it's still loading. `false` when it failed or the page was given
+    /// another resource meanwhile.
+    private func isReady(_ slot: Slot, for resource: Int) async -> Bool {
+        guard slot.resource == resource else { return false }
+        return await slot.ready?.value == true && slot.resource == resource
+    }
+
     /// The slot for a resource, starting its load if it isn't loaded.
     private func slot(for index: Int) -> Slot {
-        if let slot = slots.first(where: { $0.id == index }) {
+        if let slot = slots.first(where: { $0.resource == index }) {
             return slot
         }
-        let slot = Slot(id: index, page: makePage(for: index))
-        slots.append(slot)
-        slots.sort { $0.id < $1.id }
+        let slot: Slot
+        if slots.count < Self.maximumSlots {
+            slot = Slot(id: slots.count, page: makePage(slot: slots.count), resource: index)
+            slots.append(slot)
+        } else {
+            // The page holding the resource furthest from the one on screen,
+            // never the one on screen itself.
+            let center = resourceIndex ?? index
+            slot = slots
+                .filter { $0.resource != resourceIndex }
+                .max { abs($0.resource - center) < abs($1.resource - center) } ?? slots[0]
+            slot.ready?.cancel()
+            slot.resource = index
+            slot.state = nil
+        }
+        slot.assignment += 1
+        let assignment = slot.assignment
         let link = publication.readingOrder[index]
         let fixed = (link.properties.layout ?? publication.metadata.layout) == .fixed
         slot.ready = Task { [weak self, weak slot] in
             guard let self, let slot else { return false }
-            return await self.prepare(slot, href: link.path, fixed: fixed)
+            return await self.prepare(slot, assignment: assignment, href: link.path, fixed: fixed)
         }
         return slot
     }
 
-    private func makePage(for index: Int) -> WebPage {
+    private func makePage(slot: Int) -> WebPage {
         var configuration = WebPage.Configuration()
         configuration.websiteDataStore = dataStore
         if let scheme = URLScheme(PublicationServer.scheme) {
@@ -233,14 +273,14 @@ final class WebNavigator: ReaderNavigator {
             forMainFrameOnly: true,
             in: Self.world
         ))
-        content.add(ScriptMessageProxy(navigator: self, resource: index), contentWorld: Self.world, name: ReaderScript.messageHandler)
+        content.add(ScriptMessageProxy(navigator: self, slot: slot), contentWorld: Self.world, name: ReaderScript.messageHandler)
 
         let decider = NavigationDecider(allowsScripts: allowsScripts)
         decider.navigator = self
         return WebPage(configuration: configuration, navigationDecider: decider)
     }
 
-    private func prepare(_ slot: Slot, href: String, fixed: Bool) async -> Bool {
+    private func prepare(_ slot: Slot, assignment: Int, href: String, fixed: Bool) async -> Bool {
         do {
             for try await event in slot.page.load(URLRequest(url: PublicationServer.url(for: href))) {
                 if case .finished = event {
@@ -250,6 +290,8 @@ final class WebNavigator: ReaderNavigator {
         } catch {
             return false
         }
+        // Loading another resource into the page replaces this one.
+        guard slot.assignment == assignment else { return false }
         // Preferences go first, so the first layout already uses them.
         _ = try? await slot.page.callJavaScript(
             "chekReader.setPreferences({ fontScale, theme }, generation)",
@@ -258,7 +300,7 @@ final class WebNavigator: ReaderNavigator {
         )
         let arguments = ReaderScript.paginateArguments(fixedLayout: fixed, generation: generation)
         let script = "chekReader.paginate({ layout, columns, margin, verticalMargin, generation })"
-        guard let state = await call(script, arguments, in: slot) else { return false }
+        guard let state = await call(script, arguments, in: slot), slot.assignment == assignment else { return false }
         slot.state = state
         return true
     }
@@ -287,10 +329,14 @@ final class WebNavigator: ReaderNavigator {
     // MARK: - Script messages
 
     /// Handles input and layout changes the reader script posts.
-    fileprivate func receive(_ body: Any, from resource: Int) {
-        guard let message = body as? [String: Any], let type = message["type"] as? String else { return }
+    fileprivate func receive(_ body: Any, fromSlot id: Int) {
+        guard let message = body as? [String: Any], let type = message["type"] as? String,
+              let slot = slots.first(where: { $0.id == id })
+        else { return }
+        let resource = slot.resource
         if type == "layout" {
-            guard let slot = slots.first(where: { $0.id == resource }), let state = ScriptPageState(message) else { return }
+            // A page still loading its resource may post for the one before.
+            guard slot.state != nil, let state = ScriptPageState(message) else { return }
             slot.state = state
             if resource == resourceIndex {
                 report(slot)
@@ -325,15 +371,15 @@ final class WebNavigator: ReaderNavigator {
 @MainActor
 private final class ScriptMessageProxy: NSObject, WKScriptMessageHandler {
     private weak var navigator: WebNavigator?
-    private let resource: Int
+    private let slot: Int
 
-    init(navigator: WebNavigator, resource: Int) {
+    init(navigator: WebNavigator, slot: Int) {
         self.navigator = navigator
-        self.resource = resource
+        self.slot = slot
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        navigator?.receive(message.body, from: resource)
+        navigator?.receive(message.body, fromSlot: slot)
     }
 }
 
