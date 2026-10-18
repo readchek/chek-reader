@@ -111,6 +111,15 @@ jobs:
           if [ -n "$DEVICE" ]; then args+=(--device "$DEVICE"); fi
           if [ -n "$READERS" ]; then args+=(--readers "$READERS"); fi
           swift Benchmarks/Scripts/run.swift "${args[@]}"
+      # A crash leaves only "finished without writing results" in the log,
+      # so print the app's crash report, which names the failing frame.
+      - name: Show crash reports
+        if: failure()
+        run: |
+          shopt -s nullglob
+          reports=(~/Library/Logs/DiagnosticReports/ReaderBench*.ips)
+          if [ ${#reports[@]} -eq 0 ]; then echo "No crash reports"; exit 0; fi
+          for report in "${reports[@]}"; do echo "--- $report"; head -c 60000 "$report"; done
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7
