@@ -24,6 +24,8 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
     /// The page the column is scrolled to, as last reported.
     private var reportedIndex: Int?
     private var hasPlacedStart = false
+    /// A tap scroll is running, which counts as reading like a drag does.
+    private var isAnimatingTap = false
 
     init(navigator: ImageNavigator) {
         self.navigator = navigator
@@ -60,17 +62,20 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         guard !hasPlacedStart, collectionView.bounds.width > 0 else { return }
-        hasPlacedStart = true
+        reportedIndex = navigator.index
         if let index = navigator.index, index > 0 {
             collectionView.layoutIfNeeded()
             collectionView.scrollToItem(at: IndexPath(item: index, section: 0), at: .top, animated: false)
         }
+        // Scrolling before this is the column settling, not reading, and
+        // would otherwise record the first page as where you are.
+        hasPlacedStart = true
     }
 
     // MARK: - ImagePaging
 
     func display(page: Int, animated: Bool) {
-        guard page >= 0, page < navigator.pageCount, page != reportedIndex else { return }
+        guard page >= 0, page < navigator.pageCount, page != reportedIndex, hasPlacedStart else { return }
         reportedIndex = page
         collectionView.scrollToItem(at: IndexPath(item: page, section: 0), at: .top, animated: animated && !UIAccessibility.isReduceMotionEnabled)
     }
@@ -127,6 +132,7 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
     // MARK: - Scrolling
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard hasPlacedStart, scrollView.isTracking || scrollView.isDecelerating || isAnimatingTap else { return }
         // The page at the upper third of the screen is the one being read.
         let probe = CGPoint(x: scrollView.bounds.midX, y: scrollView.contentOffset.y + scrollView.bounds.height / 3)
         guard let index = collectionView.indexPathForItem(at: probe)?.item, index != reportedIndex else { return }
@@ -148,8 +154,12 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         let distance = collectionView.bounds.height * 0.85 * (forward ? 1 : -1)
         let maxOffset = max(collectionView.contentSize.height - collectionView.bounds.height, 0)
         let target = min(max(collectionView.contentOffset.y + distance, 0), maxOffset)
+        isAnimatingTap = true
         UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseInOut, .allowUserInteraction]) {
             self.collectionView.contentOffset.y = target
+        } completion: { _ in
+            self.scrollViewDidScroll(self.collectionView)
+            self.isAnimatingTap = false
         }
     }
 }
