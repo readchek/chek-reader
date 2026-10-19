@@ -169,8 +169,21 @@ final class ImageNavigator: ReaderNavigator {
         switch comicFlow {
         case .paged: return false
         case .scrolled: return true
+        case .automatic where publication.metadata.readingProgression == .rightToLeft:
+            // Manga that read right to left turn pages; webtoons scroll
+            // down instead. Knowing that saves fetching pages to look at,
+            // which for a streamed chapter is most of the wait to open it.
+            return false
         case .automatic:
+            // A cover is often an ordinary page even in a webtoon, so the
+            // pages after it decide. They decode together, along with the
+            // page you'll start on, so a streamed chapter shows as soon as
+            // the slowest of them arrives rather than after each in turn.
             let sample = Array(publication.readingOrder.indices.prefix(4).dropFirst(publication.readingOrder.count > 2 ? 1 : 0))
+            let start = controller?.location.flatMap { publication.readingOrderIndex(of: $0) } ?? 0
+            for index in Set(sample + [start]) where loading[index] == nil && decoded[index] == nil {
+                _ = load(index)
+            }
             var tall = 0
             for index in sample {
                 if let image = await image(at: index), Double(image.height) > Double(image.width) * 2 {

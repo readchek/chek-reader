@@ -84,7 +84,7 @@ struct ComicParser {
         }
         return Publication(
             format: .cbz,
-            metadata: Publication.Metadata(layout: .fixed),
+            metadata: Publication.Metadata(readingProgression: source.readingProgression, layout: .fixed),
             readingOrder: readingOrder,
             container: PageSourceContainer(source: source, pageCount: count, limits: limits)
         )

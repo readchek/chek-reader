@@ -64,4 +64,11 @@ public protocol PageSource: Sendable {
     func pageCount() async throws -> Int
     /// The encoded image for the page at a 0-based index.
     func page(at index: Int) async throws -> Data
+    /// The direction pages advance in, when the source knows it, such as
+    /// right to left for manga. Pages have no metadata of their own to say.
+    var readingProgression: Publication.ReadingProgression { get }
+}
+
+extension PageSource {
+    public var readingProgression: Publication.ReadingProgression { .auto }
 }

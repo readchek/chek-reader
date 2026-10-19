@@ -45,6 +45,14 @@ struct ImageNavigatorView: View {
     @ViewBuilder
     private func content(in size: CGSize) -> some View {
         #if os(iOS)
+        if navigator?.isScrolled == nil {
+            // The first pages are being looked at to choose a layout, which
+            // for streamed pages means fetching them, so say so at once
+            // rather than show a blank page.
+            ProgressView()
+                .controlSize(.large)
+                .tint(.white)
+        }
         if let navigator, let isScrolled = navigator.isScrolled {
             if isScrolled {
                 ImageStripView(navigator: navigator)
