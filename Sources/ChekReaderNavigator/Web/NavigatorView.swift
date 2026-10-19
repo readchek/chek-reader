@@ -49,10 +49,11 @@ private struct WebNavigatorView: View {
     var body: some View {
         ZStack {
             if let navigator {
-                // Every loaded resource stays in the hierarchy so it keeps its
-                // size and layout; only the one on screen is visible.
+                // Every page stays in the hierarchy so it keeps its size and
+                // layout, and keeps its view while it's reused for other
+                // resources; only the one on screen is visible.
                 ForEach(navigator.slots) { slot in
-                    let isCurrent = slot.id == navigator.resourceIndex
+                    let isCurrent = slot.resource == navigator.resourceIndex
                     WebView(slot.page)
                         .scrollDisabled(true)
                         .opacity(isCurrent ? 1 : 0)
