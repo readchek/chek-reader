@@ -76,6 +76,9 @@ const ChekReader = (() => {
         setImportant(html, "height", `${height}px`);
         setImportant(html, "max-width", "none");
         setImportant(html, "overflow", "visible");
+        // Touches never pan the web view between columns: page turns are
+        // native, and the script scrolls to each page itself.
+        setImportant(html, "touch-action", "none");
         // Each page is one viewport wide: `columns` columns separated and
         // edged by `margin`, so column k of page p starts at p * width + margin.
         setImportant(container, "box-sizing", "border-box");

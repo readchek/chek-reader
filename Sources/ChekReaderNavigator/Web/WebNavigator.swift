@@ -359,6 +359,7 @@ final class WebNavigator: ReaderNavigator {
         slot.state = state
         resourceIndex = slot.resource
         report(slot)
+        pager?.stopContentScrolling()
 
         // The next resources first, since reading usually goes forward. One
         // at a time, because new pages starting together slow each other

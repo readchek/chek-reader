@@ -25,6 +25,8 @@ protocol BookPaging: AnyObject {
     /// picture another page.
     func cover(with image: CGImage)
     func uncover()
+    /// Stops the web views panning on their own, for ones just created.
+    func stopContentScrolling()
 }
 
 enum BookSnapshot {
@@ -138,6 +140,15 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         liveController.uncover()
     }
 
+    func stopContentScrolling() {
+        liveController.stopContentScrolling()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        stopContentScrolling()
+    }
+
     // MARK: - Data source
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
@@ -218,10 +229,15 @@ private final class LivePageController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // The web views must not pan between columns themselves, or their
-        // scrolling takes the drag from the page turn.
+        stopContentScrolling()
+    }
+
+    /// The web views must not pan between columns themselves, or their
+    /// scrolling takes the drag from the page turn.
+    func stopContentScrolling() {
         for scrollView in view.descendants(of: UIScrollView.self) where scrollView.isScrollEnabled {
             scrollView.isScrollEnabled = false
+            scrollView.panGestureRecognizer.isEnabled = false
         }
     }
 }
