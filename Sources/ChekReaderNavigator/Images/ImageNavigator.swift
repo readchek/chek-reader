@@ -19,6 +19,11 @@ final class ImageNavigator: ReaderNavigator {
     private(set) var image: CGImage?
     /// How pages turn. The pager is rebuilt when it changes.
     private(set) var pageTransition: ReaderPreferences.PageTransition
+    /// The flow asked for; ``isScrolled`` is what it resolved to.
+    @ObservationIgnored private var comicFlow: ReaderPreferences.ComicFlow
+    /// Whether pages show in one vertical column rather than one at a
+    /// time. `nil` until ``start()`` has looked at the pages.
+    private(set) var isScrolled: Bool?
     /// Whether pages run right to left, as in manga.
     let isRightToLeft: Bool
     /// The page-turning view showing the pages, when there is one. It
@@ -34,6 +39,8 @@ final class ImageNavigator: ReaderNavigator {
     @ObservationIgnored private var generation = 0
     /// The longest side, in pixels, pages decode to.
     @ObservationIgnored private var maxPixelSize = 2048
+    /// The screen's width in pixels, which tall pages decode wide enough to fill.
+    @ObservationIgnored private var widthPixels = 0
     /// The first page of each table of contents entry, for locator titles.
     @ObservationIgnored private let chapters: [(page: Int, title: String)]
 
@@ -45,6 +52,7 @@ final class ImageNavigator: ReaderNavigator {
         self.publication = publication
         session = controller.session
         pageTransition = controller.preferences.pageTransition
+        comicFlow = controller.preferences.comicFlow
         isRightToLeft = publication.metadata.readingProgression == .rightToLeft
         var chapters: [(page: Int, title: String)] = []
         for link in publication.tableOfContents {
@@ -57,6 +65,7 @@ final class ImageNavigator: ReaderNavigator {
 
     /// Connects to the controller and shows its current location.
     func start() async {
+        isScrolled = await resolveScrolled()
         guard let controller, controller.attach(self, session: session),
               let location = controller.location ?? publication.startLocator
         else { return }
@@ -66,6 +75,7 @@ final class ImageNavigator: ReaderNavigator {
     /// Sets the size pages are shown at, decoding them again when it
     /// changes enough to matter.
     func setViewport(width: Double, height: Double, scale: Double) {
+        widthPixels = Int((width * scale).rounded(.up))
         let pixels = Int((max(width, height) * scale).rounded(.up))
         guard pixels > 0, abs(pixels - maxPixelSize) * 4 > maxPixelSize else { return }
         maxPixelSize = pixels
@@ -97,6 +107,10 @@ final class ImageNavigator: ReaderNavigator {
     /// Pages keep their publisher's look, so only the page transition applies.
     func apply(_ preferences: ReaderPreferences) async {
         pageTransition = preferences.pageTransition
+        if preferences.comicFlow != comicFlow {
+            comicFlow = preferences.comicFlow
+            isScrolled = await resolveScrolled()
+        }
     }
 
     var pageCount: Int {
@@ -146,6 +160,24 @@ final class ImageNavigator: ReaderNavigator {
         return page != nil
     }
 
+    /// Webtoons are long strips meant to be scrolled, so the automatic flow
+    /// scrolls when the first pages are much taller than they are wide.
+    private func resolveScrolled() async -> Bool {
+        switch comicFlow {
+        case .paged: return false
+        case .scrolled: return true
+        case .automatic:
+            let sample = Array(publication.readingOrder.indices.prefix(4).dropFirst(publication.readingOrder.count > 2 ? 1 : 0))
+            var tall = 0
+            for index in sample {
+                if let image = await image(at: index), Double(image.height) > Double(image.width) * 2 {
+                    tall += 1
+                }
+            }
+            return !sample.isEmpty && tall * 2 > sample.count
+        }
+    }
+
     /// Records the page the pager settled on after a turn.
     func didShow(_ target: Int) {
         guard target != index else { return }
@@ -186,9 +218,10 @@ final class ImageNavigator: ReaderNavigator {
         let path = publication.readingOrder[index].path
         let publication = publication
         let size = maxPixelSize
+        let width = widthPixels
         let task = Task { [weak self] () -> CGImage? in
             guard let data = try? await publication.data(at: path) else { return nil }
-            let image = await PageDecoder.decode(data, maxPixelSize: size)
+            let image = await PageDecoder.decode(data, maxPixelSize: size, minimumWidth: width)
             if let image {
                 self?.didDecode(image, at: index, size: size)
             }

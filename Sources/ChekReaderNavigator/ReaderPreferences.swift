@@ -31,6 +31,17 @@ public struct ReaderPreferences: Hashable, Sendable {
         case slide
     }
 
+    /// How comic pages follow one another.
+    public enum ComicFlow: String, Hashable, Sendable, CaseIterable {
+        /// Vertical scrolling for webtoons, whose pages are tall strips,
+        /// and turning pages for everything else.
+        case automatic
+        /// One page at a time, turned with ``PageTransition``.
+        case paged
+        /// Every page in one continuous column, scrolled vertically.
+        case scrolled
+    }
+
     /// The smallest and largest ``fontScale``.
     public static let fontScaleRange: ClosedRange<Double> = 0.5...3
     /// The smallest and largest ``lineHeight``.
@@ -57,6 +68,7 @@ public struct ReaderPreferences: Hashable, Sendable {
         didSet { marginScale = Self.clamped(marginScale, to: Self.marginScaleRange, default: 1) }
     }
     public var pageTransition: PageTransition
+    public var comicFlow: ComicFlow
 
     public init(
         fontScale: Double = 1,
@@ -64,7 +76,8 @@ public struct ReaderPreferences: Hashable, Sendable {
         font: Font = .original,
         lineHeight: Double? = nil,
         marginScale: Double = 1,
-        pageTransition: PageTransition = .curl
+        pageTransition: PageTransition = .curl,
+        comicFlow: ComicFlow = .automatic
     ) {
         self.fontScale = Self.clamped(fontScale, to: Self.fontScaleRange, default: 1)
         self.theme = theme
@@ -72,6 +85,7 @@ public struct ReaderPreferences: Hashable, Sendable {
         self.lineHeight = lineHeight.map { Self.clamped($0, to: Self.lineHeightRange, default: 1.5) }
         self.marginScale = Self.clamped(marginScale, to: Self.marginScaleRange, default: 1)
         self.pageTransition = pageTransition
+        self.comicFlow = comicFlow
     }
 
     private static func clamped(_ value: Double, to range: ClosedRange<Double>, default fallback: Double) -> Double {

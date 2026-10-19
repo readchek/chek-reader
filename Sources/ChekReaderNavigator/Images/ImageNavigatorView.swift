@@ -45,11 +45,16 @@ struct ImageNavigatorView: View {
     @ViewBuilder
     private func content(in size: CGSize) -> some View {
         #if os(iOS)
-        if let navigator {
-            // A different transition needs a new page view controller.
-            ImagePagerView(navigator: navigator)
-                .id(navigator.pageTransition)
-                .ignoresSafeArea()
+        if let navigator, let isScrolled = navigator.isScrolled {
+            if isScrolled {
+                ImageStripView(navigator: navigator)
+                    .ignoresSafeArea()
+            } else {
+                // A different transition needs a new page view controller.
+                ImagePagerView(navigator: navigator)
+                    .id(navigator.pageTransition)
+                    .ignoresSafeArea()
+            }
         }
         #else
         ZStack {

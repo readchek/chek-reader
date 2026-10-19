@@ -141,6 +141,8 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
     private let spinner = UIActivityIndicatorView(style: .medium)
     /// Whether the sharper image for zooming has been asked for.
     private var requestedZoomImage = false
+    /// A tall page starts at its top, once.
+    private var hasPlacedTallPage = false
 
     init(index: Int, pager: ImagePagerController) {
         self.index = index
@@ -221,11 +223,23 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
             return
         }
         let bounds = scrollView.bounds.size
-        let fit = min(bounds.width / image.size.width, bounds.height / image.size.height)
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        // A page much taller than the screen, such as a webtoon strip, fits
+        // the width and scrolls down; shrinking it to fit the height would
+        // leave it too narrow to read.
+        let isTall = image.size.height / image.size.width > bounds.height / bounds.width * 1.15
+        let fit = isTall
+            ? bounds.width / image.size.width
+            : min(bounds.width / image.size.width, bounds.height / image.size.height)
         let size = CGSize(width: image.size.width * fit, height: image.size.height * fit)
         imageView.frame = CGRect(origin: .zero, size: size)
         scrollView.contentSize = size
+        scrollView.alwaysBounceVertical = isTall
         centerImage()
+        if isTall, !hasPlacedTallPage {
+            hasPlacedTallPage = true
+            scrollView.contentOffset = CGPoint(x: 0, y: -scrollView.adjustedContentInset.top)
+        }
     }
 
     private func centerImage() {
