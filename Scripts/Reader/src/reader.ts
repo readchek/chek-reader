@@ -271,8 +271,16 @@ const ChekReader = (() => {
     async function paginate(next: PaginateOptions): Promise<PageState> {
         Object.assign(options, next);
         if (options.layout !== "fixed" && fitViewportToDevice()) {
-            // The new viewport takes effect at the next layout.
-            await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+            // The new viewport arrives with a resize. Laying out before it
+            // would size the columns for the old width.
+            await new Promise<void>((resolve) => {
+                const done = () => {
+                    window.removeEventListener("resize", done);
+                    resolve();
+                };
+                window.addEventListener("resize", done);
+                setTimeout(done, 300);
+            });
         }
         await waitForContent();
         page = 0;
