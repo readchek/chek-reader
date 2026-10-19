@@ -54,7 +54,11 @@ struct BookPagerView<Content: View>: UIViewControllerRepresentable {
     @ViewBuilder let content: () -> Content
 
     func makeUIViewController(context: Context) -> BookPagerController<Content> {
-        BookPagerController(navigator: navigator, live: UIHostingController(rootView: content()))
+        let hosting = UIHostingController(rootView: content())
+        // The page is laid out once for the screen. Bars and the status bar
+        // coming and going must not change its safe area and move the text.
+        hosting.safeAreaRegions = []
+        return BookPagerController(navigator: navigator, live: hosting)
     }
 
     func updateUIViewController(_ controller: BookPagerController<Content>, context: Context) {
@@ -275,9 +279,17 @@ private final class LivePageController: UIViewController {
     /// The web views must not pan between columns themselves, or their
     /// scrolling takes the drag from the page turn.
     func stopContentScrolling() {
-        for scrollView in view.descendants(of: UIScrollView.self) where scrollView.isScrollEnabled {
-            scrollView.isScrollEnabled = false
-            scrollView.panGestureRecognizer.isEnabled = false
+        for scrollView in view.descendants(of: UIScrollView.self) {
+            if scrollView.isScrollEnabled {
+                scrollView.isScrollEnabled = false
+                scrollView.panGestureRecognizer.isEnabled = false
+            }
+            // Web views inset their content for bars over them; the reader
+            // already keeps text clear of the screen's edges, and bars that
+            // come and go would move it.
+            if scrollView.contentInsetAdjustmentBehavior != .never {
+                scrollView.contentInsetAdjustmentBehavior = .never
+            }
         }
     }
 }
