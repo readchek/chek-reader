@@ -31,6 +31,9 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
             navigationOrientation: .horizontal,
             options: curl ? [.spineLocation: NSNumber(value: UIPageViewController.SpineLocation.min.rawValue)] : [.interPageSpacing: NSNumber(value: 12)]
         )
+        // Set before the view loads, which is when UIKit reads it to decide
+        // how many pages each turn needs.
+        isDoubleSided = curl
     }
 
     @available(*, unavailable)
@@ -50,7 +53,6 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         for recognizer in gestureRecognizers where recognizer is UITapGestureRecognizer {
             recognizer.isEnabled = false
         }
-        isDoubleSided = isCurl
         setViewControllers(pages(for: navigator.index ?? 0), direction: .forward, animated: false)
         navigator.pager = self
     }
