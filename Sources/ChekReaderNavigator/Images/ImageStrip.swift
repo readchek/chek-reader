@@ -64,9 +64,11 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        guard !hasPlacedStart, collectionView.bounds.width > 0 else { return }
-        reportedIndex = navigator.index
-        if let index = navigator.index, index > 0 {
+        // The column can lay out before the navigator knows where you are;
+        // it places itself once it does.
+        guard !hasPlacedStart, collectionView.bounds.width > 0, let index = navigator.index else { return }
+        reportedIndex = index
+        if index > 0 {
             collectionView.layoutIfNeeded()
             collectionView.scrollToItem(at: IndexPath(item: index, section: 0), at: .top, animated: false)
         }
@@ -78,7 +80,11 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
     // MARK: - ImagePaging
 
     func display(page: Int, animated: Bool) {
-        guard page >= 0, page < navigator.pageCount, page != reportedIndex, hasPlacedStart else { return }
+        guard page >= 0, page < navigator.pageCount, page != reportedIndex else { return }
+        guard hasPlacedStart else {
+            view.setNeedsLayout()
+            return
+        }
         reportedIndex = page
         collectionView.scrollToItem(at: IndexPath(item: page, section: 0), at: .top, animated: animated && !UIAccessibility.isReduceMotionEnabled)
     }

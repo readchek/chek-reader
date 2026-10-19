@@ -155,6 +155,9 @@ final class ImageNavigator: ReaderNavigator {
         guard current == generation else { return false }
         index = target
         image = page
+        // The pager can appear while the page decodes, showing wherever it
+        // started, so it's told where to be.
+        pager?.display(page: target, animated: false)
         report()
         keep(around: target)
         return page != nil
