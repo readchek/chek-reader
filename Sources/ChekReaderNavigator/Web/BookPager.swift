@@ -110,7 +110,12 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
 
     /// `front`, and its back when pages curl.
     private func pages(for front: UIViewController) -> [UIViewController] {
-        guard isCurl, let position = position(of: front) else { return [front] }
+        guard isCurl else { return [front] }
+        // A double-sided curl must always get a front and a back, or UIKit
+        // throws, so a page whose place isn't known yet gets a plain back.
+        guard let position = position(of: front) else {
+            return [front, PageBackController(front: AnyHashable(0), image: nil, pageColor: pageColor)]
+        }
         return [front, back(of: position, front: front)]
     }
 
