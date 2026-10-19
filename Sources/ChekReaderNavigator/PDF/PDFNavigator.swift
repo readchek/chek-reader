@@ -2,6 +2,9 @@
 import ChekReaderCore
 import Foundation
 import PDFKit
+#if os(iOS)
+import UIKit
+#endif
 
 /// Shows a PDF a page at a time with PDFKit's own view, so pages render
 /// as vectors at any zoom and turn without rasterizing.
@@ -35,6 +38,14 @@ final class PDFNavigator: NSObject, ReaderNavigator {
         #if os(iOS)
         // Swiping turns pages, as in Books.
         view.usePageViewController(true, withViewOptions: nil)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
+        // A double tap zooms, so a single tap waits until it can't be one.
+        for recognizer in view.gestureRecognizers ?? [] {
+            if let other = recognizer as? UITapGestureRecognizer, other.numberOfTapsRequired == 2 {
+                tap.require(toFail: other)
+            }
+        }
+        view.addGestureRecognizer(tap)
         #endif
         NotificationCenter.default.addObserver(self, selector: #selector(pageChanged), name: .PDFViewPageChanged, object: view)
     }
@@ -80,6 +91,31 @@ final class PDFNavigator: NSObject, ReaderNavigator {
 
     /// A PDF keeps its publisher's layout, so text size and themes don't apply.
     func apply(_ preferences: ReaderPreferences) async {}
+
+    #if os(iOS)
+    /// Turns the page for a tap at either side, as the other navigators do,
+    /// and reports taps in the middle.
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+        let width = view.bounds.width
+        guard width > 0 else { return }
+        let x = recognizer.location(in: view).x / width
+        let zone: PageCommand.Input.Zone = x < 0.3 ? .left : x > 0.7 ? .right : .center
+        guard let command = PageCommand(.tap(zone), readingProgression: publication.metadata.readingProgression) else {
+            controller?.navigatorDidTapMiddle(session: session)
+            return
+        }
+        Task {
+            switch command {
+            case .forward: _ = await goForward()
+            case .backward: _ = await goBackward()
+            case .firstPage:
+                if let page = view.document?.page(at: 0) { view.go(to: page) }
+            case .lastPage:
+                if let document = view.document, let page = document.page(at: document.pageCount - 1) { view.go(to: page) }
+            }
+        }
+    }
+    #endif
 
     @objc private func pageChanged(_ notification: Notification) {
         report()

@@ -25,7 +25,14 @@ enum ReaderScript {
 
     /// The arguments for the script's `setPreferences` call.
     static func preferenceArguments(_ preferences: ReaderPreferences) -> [String: Any] {
-        ["fontScale": preferences.fontScale, "theme": preferences.theme.rawValue]
+        [
+            "fontScale": preferences.fontScale,
+            "theme": preferences.theme.rawValue,
+            "font": preferences.font.rawValue,
+            // Zero keeps the publication's line height.
+            "lineHeight": preferences.lineHeight ?? 0,
+            "marginScale": preferences.marginScale,
+        ]
     }
 
     /// The options for the script's `paginate` call. Each key becomes a

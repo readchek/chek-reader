@@ -82,3 +82,31 @@ test("keeps the same text on screen when the font size changes", async () => {
     assert.ok(await wordVisible(page, anchor.highlight));
     await page.close();
 });
+
+test("applies fonts, line height and margins, keeping the same text on screen", async () => {
+    const page = await open();
+    await page.evaluate(() => chekReader.goToPage(5, 2));
+    const anchor = await page.evaluate(() => chekReader.locate());
+    const before = await page.evaluate(() => chekReader.state());
+
+    const spaced = await page.evaluate(() => chekReader.setPreferences(
+        { fontScale: 1, theme: "default", font: "serif", lineHeight: 2, marginScale: 2 }, 3));
+    assert.ok(spaced.pageCount > before.pageCount, `${spaced.pageCount} pages spaced out, ${before.pageCount} before`);
+    assert.ok(await wordVisible(page, anchor.highlight), "the anchor is still on screen");
+    const style = await page.evaluate(() => {
+        const paragraph = getComputedStyle(document.querySelector("p"));
+        return {
+            font: paragraph.fontFamily,
+            lineHeight: Number.parseFloat(paragraph.lineHeight) / Number.parseFloat(paragraph.fontSize),
+            padding: getComputedStyle(document.body).paddingLeft,
+        };
+    });
+    assert.match(style.font, /serif/);
+    assert.equal(style.lineHeight, 2);
+    assert.equal(style.padding, "40px");
+
+    const restored = await page.evaluate(() => chekReader.setPreferences({ fontScale: 1, theme: "default" }, 4));
+    assert.equal(restored.pageCount, before.pageCount);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.body).paddingLeft), "20px");
+    await page.close();
+});

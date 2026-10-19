@@ -90,7 +90,12 @@ final class ImageNavigator: ReaderNavigator {
 
     /// Turns the page for a tap, swipe or key.
     func handle(_ input: PageCommand.Input) {
-        guard let command = PageCommand(input, readingProgression: publication.metadata.readingProgression) else { return }
+        guard let command = PageCommand(input, readingProgression: publication.metadata.readingProgression) else {
+            if input == .tap(.center) {
+                controller?.navigatorDidTapMiddle(session: session)
+            }
+            return
+        }
         Task {
             switch command {
             case .forward: _ = await goForward()

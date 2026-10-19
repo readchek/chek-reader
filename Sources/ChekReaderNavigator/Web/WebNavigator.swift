@@ -176,7 +176,7 @@ final class WebNavigator: ReaderNavigator {
             let ready = await isReady(slot, for: resource)
             guard current == generation else { return }
             guard ready else { continue }
-            guard let state = await call("chekReader.setPreferences({ fontScale, theme }, generation)", arguments, in: slot) else {
+            guard let state = await call("chekReader.setPreferences({ fontScale, theme, font, lineHeight, marginScale }, generation)", arguments, in: slot) else {
                 continue
             }
             guard slot.resource == resource else { continue }
@@ -303,7 +303,7 @@ final class WebNavigator: ReaderNavigator {
         guard slot.assignment == assignment else { return false }
         // Preferences go first, so the first layout already uses them.
         _ = try? await slot.page.callJavaScript(
-            "chekReader.setPreferences({ fontScale, theme }, generation)",
+            "chekReader.setPreferences({ fontScale, theme, font, lineHeight, marginScale }, generation)",
             arguments: ReaderScript.preferenceArguments(preferences).merging(["generation": generation]) { $1 },
             contentWorld: Self.world
         )
@@ -353,9 +353,13 @@ final class WebNavigator: ReaderNavigator {
             return
         }
         // Only the page on screen takes input; the others are hidden.
-        guard resource == resourceIndex, let input = Self.input(type: type, message: message),
-              let command = PageCommand(input, readingProgression: publication.metadata.readingProgression)
-        else { return }
+        guard resource == resourceIndex, let input = Self.input(type: type, message: message) else { return }
+        guard let command = PageCommand(input, readingProgression: publication.metadata.readingProgression) else {
+            if input == .tap(.center) {
+                controller?.navigatorDidTapMiddle(session: session)
+            }
+            return
+        }
         Task { _ = await perform(command) }
     }
 

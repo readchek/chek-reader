@@ -16,6 +16,8 @@ const ChekReader = (() => {
         verticalMargin: 0,
         generation: 0,
     };
+    /** The reader's margin preference, multiplying `options.margin`. */
+    let marginScale = 1;
     let page = 0;
     let pageCount = 1;
     let pageWidth = window.innerWidth;
@@ -63,7 +65,7 @@ const ChekReader = (() => {
         const columns = options.columns > 0
             ? Math.round(options.columns)
             : (width > height && width >= 900 ? 2 : 1);
-        const margin = Math.max(0, Math.min(options.margin, width / 4));
+        const margin = Math.max(0, Math.min(options.margin * marginScale, width / 4));
         const verticalMargin = Math.max(0, Math.min(options.verticalMargin, height / 4));
         const html = root();
         // The body holds the columns and the root scrolls across the ones
@@ -390,6 +392,10 @@ const ChekReader = (() => {
         pinned = { highlight, before };
         return state;
     }
+    const fonts = {
+        serif: `ui-serif, "New York", Georgia, serif`,
+        sans: `system-ui, -apple-system, "Helvetica Neue", sans-serif`,
+    };
     const themes = {
         light: { text: "#1d1d1f", background: "#ffffff", link: "#0b57d0" },
         sepia: { text: "#4b3a26", background: "#f5ecd9", link: "#7a4b12" },
@@ -408,8 +414,15 @@ const ChekReader = (() => {
         }
         const scale = Math.max(0.5, Math.min(3, Number.isFinite(preferences.fontScale) ? preferences.fontScale : 1));
         const theme = preferences.theme === "default" ? null : themes[preferences.theme];
+        const font = preferences.font && preferences.font !== "default" ? fonts[preferences.font] : null;
+        const lineHeight = Number.isFinite(preferences.lineHeight) && (preferences.lineHeight ?? 0) > 0
+            ? Math.max(1, Math.min(2.5, preferences.lineHeight ?? 0))
+            : null;
+        marginScale = Number.isFinite(preferences.marginScale) ? Math.max(0, Math.min(3, preferences.marginScale ?? 1)) : 1;
         style.textContent = `
             html { font-size: ${scale * 100}% !important; -webkit-text-size-adjust: none; }
+            ${font ? `body, body :not(code):not(pre):not(kbd):not(samp) { font-family: ${font} !important; }` : ""}
+            ${lineHeight ? `body, body * { line-height: ${lineHeight} !important; }` : ""}
             ${theme ? `
             html, body { background: ${theme.background} !important; color: ${theme.text} !important; }
             body * { color: inherit !important; background-color: transparent !important; border-color: currentColor !important; }

@@ -13,22 +13,57 @@ public struct ReaderPreferences: Hashable, Sendable {
         case dark
     }
 
+    /// The typeface for body text.
+    public enum Font: String, Hashable, Sendable, CaseIterable {
+        /// The publication's own fonts.
+        case original = "default"
+        /// The system serif, New York on Apple platforms.
+        case serif
+        /// The system sans serif, San Francisco on Apple platforms.
+        case sansSerif = "sans"
+    }
+
     /// The smallest and largest ``fontScale``.
     public static let fontScaleRange: ClosedRange<Double> = 0.5...3
+    /// The smallest and largest ``lineHeight``.
+    public static let lineHeightRange: ClosedRange<Double> = 1...2.5
+    /// The smallest and largest ``marginScale``.
+    public static let marginScaleRange: ClosedRange<Double> = 0...3
 
     /// Text size relative to the publication's, where 1 is unchanged.
     /// Values outside ``fontScaleRange`` are clamped.
     public var fontScale: Double {
-        didSet { fontScale = Self.clamped(fontScale) }
+        didSet { fontScale = Self.clamped(fontScale, to: Self.fontScaleRange, default: 1) }
     }
     public var theme: Theme
-
-    public init(fontScale: Double = 1, theme: Theme = .original) {
-        self.fontScale = Self.clamped(fontScale)
-        self.theme = theme
+    public var font: Font
+    /// Line height as a multiple of the text size, or `nil` for the
+    /// publication's own. Values outside ``lineHeightRange`` are clamped.
+    public var lineHeight: Double? {
+        didSet { lineHeight = lineHeight.map { Self.clamped($0, to: Self.lineHeightRange, default: 1.5) } }
+    }
+    /// Page margins relative to the reader's standard ones, where 1 is
+    /// unchanged and 0 runs text to the edges. Values outside
+    /// ``marginScaleRange`` are clamped.
+    public var marginScale: Double {
+        didSet { marginScale = Self.clamped(marginScale, to: Self.marginScaleRange, default: 1) }
     }
 
-    private static func clamped(_ scale: Double) -> Double {
-        scale.isFinite ? min(max(scale, fontScaleRange.lowerBound), fontScaleRange.upperBound) : 1
+    public init(
+        fontScale: Double = 1,
+        theme: Theme = .original,
+        font: Font = .original,
+        lineHeight: Double? = nil,
+        marginScale: Double = 1
+    ) {
+        self.fontScale = Self.clamped(fontScale, to: Self.fontScaleRange, default: 1)
+        self.theme = theme
+        self.font = font
+        self.lineHeight = lineHeight.map { Self.clamped($0, to: Self.lineHeightRange, default: 1.5) }
+        self.marginScale = Self.clamped(marginScale, to: Self.marginScaleRange, default: 1)
+    }
+
+    private static func clamped(_ value: Double, to range: ClosedRange<Double>, default fallback: Double) -> Double {
+        value.isFinite ? min(max(value, range.lowerBound), range.upperBound) : fallback
     }
 }

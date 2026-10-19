@@ -34,6 +34,9 @@ public final class ReaderController {
     /// The reading settings applied to reflowable text. Set them with
     /// ``setPreferences(_:)``.
     public private(set) var preferences: ReaderPreferences
+    /// Counts taps in the middle of the page, where a tap doesn't turn it.
+    /// Apps watch it to show and hide their own controls.
+    public private(set) var middleTapCount = 0
 
     /// The limits applied to every publication this controller opens.
     public let limits: ReaderLimits
@@ -231,6 +234,12 @@ public final class ReaderController {
         let moved = located(locator)
         guard moved != location else { return }
         location = moved
+    }
+
+    /// Records a tap in the middle of the page, unless its session is stale.
+    func navigatorDidTapMiddle(session: Int) {
+        guard session == self.session, state == .ready else { return }
+        middleTapCount += 1
     }
 
     private func fail(_ error: ReaderError) throws(ReaderError) {

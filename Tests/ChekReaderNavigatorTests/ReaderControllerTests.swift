@@ -1,6 +1,6 @@
 import ChekReaderCore
 import ChekReaderEPUB
-import ChekReaderNavigator
+@testable import ChekReaderNavigator
 import ChekReaderTestSupport
 import Foundation
 import Testing
@@ -122,5 +122,30 @@ import Testing
         try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
         await controller.setPreferences(ReaderPreferences(fontScale: 1.25, theme: .sepia))
         #expect(controller.preferences == ReaderPreferences(fontScale: 1.25, theme: .sepia))
+    }
+
+    @Test func clampsTypographyPreferences() {
+        let preferences = ReaderPreferences(font: .serif, lineHeight: 9, marginScale: -1)
+        #expect(preferences.font == .serif)
+        #expect(preferences.lineHeight == ReaderPreferences.lineHeightRange.upperBound)
+        #expect(preferences.marginScale == ReaderPreferences.marginScaleRange.lowerBound)
+        #expect(ReaderPreferences(lineHeight: .nan).lineHeight == 1.5)
+        #expect(ReaderPreferences().lineHeight == nil)
+    }
+
+    @Test func countsMiddleTapsOnlyForTheCurrentSession() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let controller = ReaderController()
+        controller.navigatorDidTapMiddle(session: controller.session)
+        #expect(controller.middleTapCount == 0)
+
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        let first = controller.session
+        controller.navigatorDidTapMiddle(session: first)
+        #expect(controller.middleTapCount == 1)
+
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        controller.navigatorDidTapMiddle(session: first)
+        #expect(controller.middleTapCount == 1)
     }
 }
