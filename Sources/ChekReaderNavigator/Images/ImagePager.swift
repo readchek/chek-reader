@@ -66,10 +66,11 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
     func display(page: Int, animated: Bool) {
         guard page != currentIndex else { return }
         let forward = page > (currentIndex ?? 0)
+        let animate = animated && !UIAccessibility.isReduceMotionEnabled
         setViewControllers(
-            pages(for: page),
+            pages(for: page, animated: animate),
             direction: forward ? .forward : .reverse,
-            animated: animated && !UIAccessibility.isReduceMotionEnabled
+            animated: animate
         )
     }
 
@@ -77,8 +78,10 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
 
     /// The pages to set for `index`. With a spine at the edge, UIKit takes
     /// the front alone, and asks the data source for its back.
-    private func pages(for index: Int) -> [UIViewController] {
-        [ImagePageController(index: index, pager: self)]
+    private func pages(for index: Int, animated: Bool = false) -> [UIViewController] {
+        let front = ImagePageController(index: index, pager: self)
+        // A double-sided curl takes the back too, but only when animated.
+        return isCurl && animated ? [front, back(of: index)] : [front]
     }
 
     private func back(of index: Int) -> PageBackController {

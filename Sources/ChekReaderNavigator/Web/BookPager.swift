@@ -110,10 +110,13 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         navigator.pager = self
     }
 
-    /// The pages to set for `front`. With a spine at the edge, UIKit
-    /// takes the front alone, and asks the data source for its back.
-    private func pages(for front: UIViewController) -> [UIViewController] {
-        [front]
+    /// The pages to set for `front`. A double-sided curl takes the front
+    /// alone when set without animation, and the front and its back for an
+    /// animated turn; anything else makes UIKit throw.
+    private func pages(for front: UIViewController, animated: Bool = false) -> [UIViewController] {
+        guard isCurl, animated else { return [front] }
+        let position = position(of: front)
+        return [front, position.map { back(of: $0, front: front) } ?? PageBackController(front: AnyHashable(0), image: nil, pageColor: pageColor)]
     }
 
     private func back(of position: BookPosition, front: UIViewController) -> PageBackController {
@@ -146,7 +149,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         let page = SnapshotPageController(position: position, image: image, navigator: navigator)
         let animate = !UIAccessibility.isReduceMotionEnabled
         await withCheckedContinuation { continuation in
-            setViewControllers(pages(for: page), direction: forward ? .forward : .reverse, animated: animate) { _ in
+            setViewControllers(pages(for: page, animated: animate), direction: forward ? .forward : .reverse, animated: animate) { _ in
                 continuation.resume()
             }
         }
