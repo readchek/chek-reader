@@ -246,42 +246,9 @@ const ChekReader = (() => {
         await Promise.race([Promise.all(pending), new Promise((resolve) => setTimeout(resolve, 500))]);
     }
 
-    /**
-     * Lays reflowable text out at the device's width. Most EPUBs have no
-     * viewport tag, and without one WebKit on iOS lays a page out 980
-     * pixels wide and scales it down, so text comes out tiny with hairline
-     * margins. Returns whether the viewport changed.
-     */
-    function fitViewportToDevice(): boolean {
-        const content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
-        let meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-        if (meta?.content === content) {
-            return false;
-        }
-        if (!meta) {
-            meta = document.createElement("meta");
-            meta.name = "viewport";
-            (document.head ?? root()).prepend(meta);
-        }
-        meta.content = content;
-        return true;
-    }
-
     /** Lays the resource out and moves to its first page. */
     async function paginate(next: PaginateOptions): Promise<PageState> {
         Object.assign(options, next);
-        if (options.layout !== "fixed" && fitViewportToDevice()) {
-            // The new viewport arrives with a resize. Laying out before it
-            // would size the columns for the old width.
-            await new Promise<void>((resolve) => {
-                const done = () => {
-                    window.removeEventListener("resize", done);
-                    resolve();
-                };
-                window.addEventListener("resize", done);
-                setTimeout(done, 300);
-            });
-        }
         await waitForContent();
         page = 0;
         relayoutNow();

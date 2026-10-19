@@ -105,15 +105,3 @@ test("fits a fixed-layout page to the screen", async () => {
     assert.ok(Math.abs(box.height - 500) < 1, `scaled height ${box.height}`);
     await page.close();
 });
-
-test("lays reflowable text out at the device's width when the page has no viewport tag", async () => {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
-    const page = await context.newPage();
-    const paragraphs = Array.from({ length: 30 }, (_, index) => `<p>Paragraph ${index}. ${"Lorem ipsum dolor sit amet. ".repeat(12)}</p>`).join("");
-    await page.setContent(`<html><head></head><body>${paragraphs}</body></html>`);
-    await page.addScriptTag({ content: script });
-    await page.evaluate((options) => chekReader.paginate(options), options);
-    assert.equal(await page.evaluate(() => innerWidth), 390);
-    assert.match(await page.evaluate(() => document.querySelector('meta[name="viewport"]')?.content ?? ""), /width=device-width/);
-    await context.close();
-});

@@ -23,6 +23,35 @@ enum ReaderScript {
         return source
     }()
 
+    /// The viewport reflowable resources are laid out in.
+    static let deviceViewport = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+
+    /// A script that runs before each resource's own markup and gives
+    /// reflowable resources a device-width viewport.
+    ///
+    /// Most EPUBs have no viewport tag, and without one WebKit on iOS lays a
+    /// page out 980 pixels wide and scales it down, so text comes out tiny
+    /// with hairline margins. It has to be in place before the first layout,
+    /// since a viewport added later doesn't always take effect. Fixed-layout
+    /// resources, at `fixedPaths`, keep their own viewport, which says how
+    /// big their page is.
+    static func viewportScript(fixedPaths: some Sequence<String>) -> String {
+        let paths = fixedPaths.map { "/" + $0 }.sorted()
+        let json = (try? JSONSerialization.data(withJSONObject: paths)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        return """
+            (() => {
+                const fixed = new Set(\(json));
+                if (fixed.has(decodeURIComponent(location.pathname))) {
+                    return;
+                }
+                const meta = document.createElement("meta");
+                meta.name = "viewport";
+                meta.content = "\(deviceViewport)";
+                document.documentElement.appendChild(meta);
+            })();
+            """
+    }
+
     /// The arguments for the script's `setPreferences` call.
     static func preferenceArguments(_ preferences: ReaderPreferences) -> [String: Any] {
         [

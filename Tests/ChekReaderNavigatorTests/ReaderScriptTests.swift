@@ -31,4 +31,11 @@ import Testing
         let state = try #require(ScriptPageState(["page": 9, "pageCount": 3] as [String: Any]))
         #expect(state.page == 2)
     }
+
+    @Test func givesOnlyReflowableResourcesADeviceViewport() {
+        let script = ReaderScript.viewportScript(fixedPaths: ["OEBPS/page 2.xhtml", "OEBPS/page1.xhtml"])
+        #expect(script.contains(#"["\/OEBPS\/page 2.xhtml","\/OEBPS\/page1.xhtml"]"#) || script.contains(#"["/OEBPS/page 2.xhtml","/OEBPS/page1.xhtml"]"#))
+        #expect(script.contains(ReaderScript.deviceViewport))
+        #expect(ReaderScript.viewportScript(fixedPaths: []).contains("new Set([])"))
+    }
 }

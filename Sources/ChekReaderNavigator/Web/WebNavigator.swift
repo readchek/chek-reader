@@ -276,6 +276,15 @@ final class WebNavigator: ReaderNavigator {
             configuration.urlSchemeHandlers[scheme] = PublicationSchemeHandler(server: server)
         }
         let content = configuration.userContentController
+        let fixedPaths = publication.readingOrder
+            .filter { ($0.properties.layout ?? publication.metadata.layout) == .fixed }
+            .map(\.path)
+        content.addUserScript(WKUserScript(
+            source: ReaderScript.viewportScript(fixedPaths: fixedPaths),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true,
+            in: Self.world
+        ))
         content.addUserScript(WKUserScript(
             source: ReaderScript.source,
             injectionTime: .atDocumentEnd,
