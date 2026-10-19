@@ -15,8 +15,15 @@ import Observation
 final class ImageNavigator: ReaderNavigator {
     /// The reading order index of the page on screen.
     private(set) var index: Int?
-    /// The page on screen, decoded.
+    /// The page on screen, decoded, for platforms without the pager.
     private(set) var image: CGImage?
+    /// How pages turn. The pager is rebuilt when it changes.
+    private(set) var pageTransition: ReaderPreferences.PageTransition
+    /// Whether pages run right to left, as in manga.
+    let isRightToLeft: Bool
+    /// The page-turning view showing the pages, when there is one. It
+    /// animates every turn, including ones asked for by keys or the scrubber.
+    @ObservationIgnored weak var pager: (any ImagePaging)?
 
     @ObservationIgnored let publication: Publication
     @ObservationIgnored private weak var controller: ReaderController?
@@ -37,6 +44,8 @@ final class ImageNavigator: ReaderNavigator {
         self.controller = controller
         self.publication = publication
         session = controller.session
+        pageTransition = controller.preferences.pageTransition
+        isRightToLeft = publication.metadata.readingProgression == .rightToLeft
         var chapters: [(page: Int, title: String)] = []
         for link in publication.tableOfContents {
             if let title = link.title, let page = publication.readingOrder.firstIndex(where: { $0.path == link.path }) {
@@ -85,8 +94,14 @@ final class ImageNavigator: ReaderNavigator {
         await turn(by: -1)
     }
 
-    /// Pages keep their publisher's look, so text size and themes don't apply.
-    func apply(_ preferences: ReaderPreferences) async {}
+    /// Pages keep their publisher's look, so only the page transition applies.
+    func apply(_ preferences: ReaderPreferences) async {
+        pageTransition = preferences.pageTransition
+    }
+
+    var pageCount: Int {
+        publication.readingOrder.count
+    }
 
     /// Turns the page for a tap, swipe or key.
     func handle(_ input: PageCommand.Input) {
@@ -115,6 +130,11 @@ final class ImageNavigator: ReaderNavigator {
 
     private func show(_ target: Int) async -> Bool {
         guard publication.readingOrder.indices.contains(target) else { return false }
+        if let pager {
+            pager.display(page: target, animated: index != nil && index != target)
+            didShow(target)
+            return true
+        }
         generation += 1
         let current = generation
         let page = await image(at: target)
@@ -124,6 +144,14 @@ final class ImageNavigator: ReaderNavigator {
         report()
         keep(around: target)
         return page != nil
+    }
+
+    /// Records the page the pager settled on after a turn.
+    func didShow(_ target: Int) {
+        guard target != index else { return }
+        index = target
+        report()
+        keep(around: target)
     }
 
     private func report() {
@@ -137,11 +165,21 @@ final class ImageNavigator: ReaderNavigator {
 
     // MARK: - Decoding
 
-    private func image(at index: Int) async -> CGImage? {
+    /// The page at `index`, decoded to the screen's size.
+    func image(at index: Int) async -> CGImage? {
         if let image = decoded[index] {
             return image
         }
         return await (loading[index] ?? load(index)).value
+    }
+
+    /// The page at `index` decoded to `maxPixelSize`, for zooming in past
+    /// the screen's size. It isn't kept, since it can be large.
+    func image(at index: Int, maxPixelSize: Int) async -> CGImage? {
+        guard publication.readingOrder.indices.contains(index),
+              let data = try? await publication.data(at: publication.readingOrder[index].path)
+        else { return nil }
+        return await PageDecoder.decode(data, maxPixelSize: maxPixelSize)
     }
 
     private func load(_ index: Int) -> Task<CGImage?, Never> {
@@ -181,5 +219,11 @@ final class ImageNavigator: ReaderNavigator {
             }
         }
     }
+}
+/// A view that turns a comic's pages and can be told which to show.
+@MainActor
+protocol ImagePaging: AnyObject {
+    /// Shows `page`, turning to it when `animated`.
+    func display(page: Int, animated: Bool)
 }
 #endif

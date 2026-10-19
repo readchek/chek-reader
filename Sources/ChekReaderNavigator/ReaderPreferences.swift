@@ -23,6 +23,14 @@ public struct ReaderPreferences: Hashable, Sendable {
         case sansSerif = "sans"
     }
 
+    /// How a page turns.
+    public enum PageTransition: String, Hashable, Sendable, CaseIterable {
+        /// The page curls over like paper, following your finger.
+        case curl
+        /// The next page slides in beside this one, following your finger.
+        case slide
+    }
+
     /// The smallest and largest ``fontScale``.
     public static let fontScaleRange: ClosedRange<Double> = 0.5...3
     /// The smallest and largest ``lineHeight``.
@@ -48,19 +56,22 @@ public struct ReaderPreferences: Hashable, Sendable {
     public var marginScale: Double {
         didSet { marginScale = Self.clamped(marginScale, to: Self.marginScaleRange, default: 1) }
     }
+    public var pageTransition: PageTransition
 
     public init(
         fontScale: Double = 1,
         theme: Theme = .original,
         font: Font = .original,
         lineHeight: Double? = nil,
-        marginScale: Double = 1
+        marginScale: Double = 1,
+        pageTransition: PageTransition = .curl
     ) {
         self.fontScale = Self.clamped(fontScale, to: Self.fontScaleRange, default: 1)
         self.theme = theme
         self.font = font
         self.lineHeight = lineHeight.map { Self.clamped($0, to: Self.lineHeightRange, default: 1.5) }
         self.marginScale = Self.clamped(marginScale, to: Self.marginScaleRange, default: 1)
+        self.pageTransition = pageTransition
     }
 
     private static func clamped(_ value: Double, to range: ClosedRange<Double>, default fallback: Double) -> Double {

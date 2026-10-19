@@ -15,29 +15,8 @@ struct ImageNavigatorView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            ZStack {
-                if let image = navigator?.image {
-                    Image(decorative: image, scale: 1)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .contentShape(Rectangle())
-            .onTapGesture(coordinateSpace: .local) { location in
-                let third = geometry.size.width / 3
-                let zone: PageCommand.Input.Zone = location.x < third ? .left : location.x > third * 2 ? .right : .center
-                navigator?.handle(.tap(zone))
-            }
-            .gesture(
-                DragGesture(minimumDistance: 30).onEnded { value in
-                    let width = value.translation.width
-                    guard abs(width) > abs(value.translation.height) else { return }
-                    navigator?.handle(.swipe(towardLeft: width < 0))
-                }
-            )
+            content(in: geometry.size)
+                .frame(width: geometry.size.width, height: geometry.size.height)
             .focusable()
             .focusEffectDisabled()
             .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .space, .pageUp, .pageDown, .home, .end]) { press in
@@ -56,6 +35,41 @@ struct ImageNavigatorView: View {
                 await created.start()
             }
         }
+    }
+
+    @ViewBuilder
+    private func content(in size: CGSize) -> some View {
+        #if os(iOS)
+        if let navigator {
+            // A different transition needs a new page view controller.
+            ImagePagerView(navigator: navigator)
+                .id(navigator.pageTransition)
+                .ignoresSafeArea()
+        }
+        #else
+        ZStack {
+            if let image = navigator?.image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: size.width, height: size.height)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(coordinateSpace: .local) { location in
+            let third = size.width / 3
+            let zone: PageCommand.Input.Zone = location.x < third ? .left : location.x > third * 2 ? .right : .center
+            navigator?.handle(.tap(zone))
+        }
+        .gesture(
+            DragGesture(minimumDistance: 30).onEnded { value in
+                let width = value.translation.width
+                guard abs(width) > abs(value.translation.height) else { return }
+                navigator?.handle(.swipe(towardLeft: width < 0))
+            }
+        )
+        #endif
     }
 
     private static func key(_ key: KeyEquivalent) -> PageCommand.Input.Key? {
