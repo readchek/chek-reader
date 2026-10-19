@@ -193,8 +193,16 @@ const ChekReader = (() => {
         }
         // The last page may hold fewer columns, so round up. One pixel of
         // slack absorbs subpixel widths that would otherwise add a blank page.
+        // The room kept for the last page is cleared first, so it never
+        // counts as content.
+        setImportant(root(), "min-width", "0");
         pageCount = Math.max(1, Math.ceil((Math.max(scrollExtent(), contentExtent()) - 1) / pageWidth));
         page = Math.min(page, pageCount - 1);
+        // The last column ends a margin short of its page's edge, and the
+        // engine stops scrolling where the content does, so the last page
+        // would stop short by that margin and show the one before at its
+        // edge. The root is made wide enough to scroll a whole page.
+        setImportant(root(), "min-width", `${pageCount * pageWidth}px`);
     }
 
     function scrollExtent(): number {
