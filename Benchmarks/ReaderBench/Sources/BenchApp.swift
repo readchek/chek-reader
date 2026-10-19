@@ -8,6 +8,8 @@ import UIKit
 /// - `-runs N`: repetitions per fixture and reader (default 5)
 /// - `-turns N`: page turns per run (default 30)
 /// - `-only id,id`: fixture ids to run
+/// - `-readers name,name`: readers to run, from `chek`, `readium`, `pdfkit`
+///   and `webkit` (default all), so one reader can be measured on its own
 @main
 final class BenchApp: UIResponder, UIApplicationDelegate {
     func application(
@@ -52,6 +54,8 @@ struct BenchRunner {
         let runs = defaults.integer(forKey: "runs") > 0 ? defaults.integer(forKey: "runs") : 5
         let turns = defaults.integer(forKey: "turns") > 0 ? defaults.integer(forKey: "turns") : 30
         let only = defaults.string(forKey: "only").map { Set($0.split(separator: ",").map(String.init)) }
+        let readers = defaults.string(forKey: "readers").map { Set($0.split(separator: ",").map(String.init)) }
+        func includes(_ reader: String) -> Bool { readers?.contains(reader) ?? true }
 
         // run.swift copies the corpus into Documents after installing, which
         // keeps the app small and quick to install. Device builds bundle it.
@@ -80,15 +84,18 @@ struct BenchRunner {
         let readium = ReadiumBench(host: host, recorder: recorder)
         let pdfKit = PDFKitBench(host: host, recorder: recorder)
         let webKit = WebKitFloorBench(host: host, recorder: recorder)
+        let chek = ChekReaderBench(host: host, recorder: recorder)
 
         for fixture in fixtures where only?.contains(fixture.id) ?? true {
             let url = corpus.appendingPathComponent(fixture.file)
             print("BENCH fixture \(fixture.id)")
-            await readium.run(fixture, url: url, runs: runs, turns: turns)
+            if includes("readium") {
+                await readium.run(fixture, url: url, runs: runs, turns: turns)
+            }
             switch fixture.kind {
-            case "pdf":
+            case "pdf" where includes("pdfkit"):
                 await pdfKit.run(fixture, url: url, runs: runs, turns: turns)
-            case "epub":
+            case "epub" where includes("webkit"):
                 if let publication = try? await readium.open(url) {
                     await webKit.run(fixture, publication: publication, runs: runs)
                 } else {
@@ -96,6 +103,9 @@ struct BenchRunner {
                 }
             default:
                 break
+            }
+            if includes("chek") {
+                await chek.run(fixture, url: url, runs: runs, turns: turns)
             }
         }
 

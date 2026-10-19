@@ -17,6 +17,9 @@ on:
       runs:
         description: Repetitions per fixture and reader
         default: "5"
+      readers:
+        description: Readers to run, from chek, readium, pdfkit and webkit (default is all)
+        default: ""
       device:
         description: Simulator name, such as iPhone 17 Pro (default is the first iPhone on the newest runtime)
         default: ""
@@ -54,7 +57,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: Benchmarks/.build
-          key: build-${{ hashFiles('Benchmarks/ReaderBench/project.yml', 'Benchmarks/ReaderBench/Sources/**') }}
+          key: build-${{ hashFiles('Benchmarks/ReaderBench/project.yml', 'Benchmarks/ReaderBench/Sources/**', 'Package.swift', 'Sources/**') }}
           restore-keys: build-
       - name: Build the app
         run: swift Benchmarks/Scripts/run.swift --build-only
@@ -98,6 +101,7 @@ jobs:
         env:
           RUNS: ${{ inputs.runs || '5' }}
           DEVICE: ${{ inputs.device }}
+          READERS: ${{ inputs.readers }}
           FIXTURE: ${{ matrix.fixture }}
         run: |
           # The corpus tool finds corpus.json next to itself, so it runs from Scripts.
@@ -105,7 +109,17 @@ jobs:
           args=(--runs "$RUNS" --only "$FIXTURE" --out Benchmarks/Results/ci)
           args+=(--app "$RUNNER_TEMP/bench/ReaderBench.app" --corpus-tool "$PWD/Benchmarks/Scripts/corpus-tool")
           if [ -n "$DEVICE" ]; then args+=(--device "$DEVICE"); fi
+          if [ -n "$READERS" ]; then args+=(--readers "$READERS"); fi
           swift Benchmarks/Scripts/run.swift "${args[@]}"
+      # A crash leaves only "finished without writing results" in the log,
+      # so print the app's crash report, which names the failing frame.
+      - name: Show crash reports
+        if: failure()
+        run: |
+          shopt -s nullglob
+          reports=(~/Library/Logs/DiagnosticReports/ReaderBench*.ips)
+          if [ ${#reports[@]} -eq 0 ]; then echo "No crash reports"; exit 0; fi
+          for report in "${reports[@]}"; do echo "--- $report"; head -c 60000 "$report"; done
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7

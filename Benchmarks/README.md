@@ -24,7 +24,10 @@ brew install xcodegen
 swift Benchmarks/Scripts/run.swift                      # first iPhone on the newest runtime, 5 runs
 swift Benchmarks/Scripts/run.swift --device "iPad Pro 13-inch (M5)" --runs 10
 swift Benchmarks/Scripts/run.swift --only war-and-peace --turns 60
+swift Benchmarks/Scripts/run.swift --readers chek         # one reader on its own
 ```
+
+`--readers` takes any of `chek`, `readium`, `pdfkit` and `webkit`, comma separated, and defaults to all of them. Use it to measure one reader without running the others again, then compare with a published run from the same machine. The workflow has the same option.
 
 Results land in `Benchmarks/Results/latest`. The script boots the simulator while the app builds, and copies the corpus into the app's Documents folder after installing, so the large files never go through the app bundle.
 
@@ -38,13 +41,14 @@ Each fixture runs through every reader that can open it, `--runs` times, each ru
 
 | Metric | Readers | What it is |
 | --- | --- | --- |
-| `open` | Readium, PDFKit | Parse the file into a publication or document |
-| `positions` | Readium | Build the positions list, which Readium waits for before it renders |
-| `firstLocation` | Readium | From adding the navigator to the window to its first `locationDidChange`. Readium's own UI tests treat this as ready |
+| `open` | Chek Reader, Readium, PDFKit | Parse the file into a publication or document. For Chek Reader, `ReaderController.open` until it's ready |
+| `positions` | Chek Reader, Readium | Build the positions list. Readium waits for it before it renders; Chek Reader builds it in the background after opening, and the run waits for it before showing the navigator |
+| `firstLocation` | Chek Reader, Readium | From adding the navigator to the window to its first location. For Readium that's `locationDidChange`, which its own UI tests treat as ready. Chek Reader's navigators report it once the chapter is loaded and paginated, the PDF is in its view, or the comic page is decoded |
 | `contentPainted` | Readium | Two animation frames after the first document's `load` event. Readium keeps the page hidden for at least 200 ms after that, so this is earlier than visible |
-| `pageTurn`, `pageTurnNewChapter` | Readium | `goForward` without animation until it returns, split by whether the turn entered a new chapter |
-| `relayoutFontSize` | Readium | Font size from 100% to 150% until the next location update |
-| `relayoutKeepsFirstElement` | Readium | Whether the first visible element is the same after that change |
+| `pageTurn`, `pageTurnNewChapter` | Chek Reader, Readium | `goForward` without animation until it returns, split by whether the turn entered a new chapter |
+| `relayoutFontSize` | Chek Reader, Readium | Font size from 100% to 150% until it's laid out. Readium's covers the visible chapter. Chek Reader's waits for `setPreferences`, which lays out every loaded chapter, up to three |
+| `relayoutLocationUpdate` | Chek Reader, Readium | The same change until the reader reports a new location, when it does |
+| `relayoutKeepsFirstElement` | Chek Reader, Readium | Whether the first visible element, or for Chek Reader the text at the start of the page, is the same after that change |
 | `renderFirstPage`, `renderPage` | PDFKit | Draw a page to a screen-sized bitmap, the work behind PDFView's first tiles |
 | `pageTurn` | PDFKit | `PDFView.go(to:)` and layout. Tiles render after this, so it's a lower bound |
 | `searchWholeDocument` | PDFKit | `findString` across the whole document |
@@ -80,4 +84,4 @@ Measure Chek Reader the same way when it's compared with Books or Preview, so al
 
 ## Adding a reader
 
-Add a `<Reader>Bench.swift` in `ReaderBench/Sources` with the same metric names where they apply, link it in `project.yml`, and call it from `BenchRunner`. Chek Reader joins the same app once its EPUB engine can open a book, so every number above gets a Chek Reader row next to it.
+Add a `<Reader>Bench.swift` in `ReaderBench/Sources` with the same metric names where they apply, link it in `project.yml`, call it from `BenchRunner`, and give it a name for `--readers`. `ChekReaderBench.swift` is the Chek Reader one: it links the package from this checkout and uses only its public API, a `ReaderController` shown by `NavigatorView`, as an app would.
