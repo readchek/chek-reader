@@ -75,7 +75,9 @@ const ChekReader = (() => {
         setImportant(html, "padding", "0");
         setImportant(html, "height", `${height}px`);
         setImportant(html, "max-width", "none");
-        setImportant(html, "overflow", "visible");
+        // Hidden, so the web view can't be panned between columns by hand:
+        // page turns are native. The script still scrolls it to each page.
+        setImportant(html, "overflow", "hidden");
         // Each page is one viewport wide: `columns` columns separated and
         // edged by `margin`, so column k of page p starts at p * width + margin.
         setImportant(container, "box-sizing", "border-box");
@@ -489,14 +491,6 @@ const ChekReader = (() => {
         const touch = event.touches[0];
         touchStart = event.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY } : null;
     }, { passive: true });
-    // Stop the web view panning between columns itself; page turns are native.
-    document.addEventListener("touchmove", (event) => {
-        const touch = event.touches[0];
-        if (paginated && options.layout === "reflowable" && touchStart && touch
-            && Math.abs(touch.clientX - touchStart.x) > Math.abs(touch.clientY - touchStart.y)) {
-            event.preventDefault();
-        }
-    }, { passive: false });
     document.addEventListener("touchend", (event) => {
         const touch = event.changedTouches[0];
         if (!touchStart || !touch) {

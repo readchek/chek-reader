@@ -181,6 +181,23 @@ private final class LivePageController: UIViewController {
         view.addSubview(hosting.view)
         hosting.didMove(toParent: self)
     }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // The web views must not pan between columns themselves, or their
+        // scrolling takes the drag from the page turn.
+        for scrollView in view.descendants(of: UIScrollView.self) where scrollView.isScrollEnabled {
+            scrollView.isScrollEnabled = false
+        }
+    }
+}
+
+private extension UIView {
+    func descendants<T: UIView>(of type: T.Type) -> [T] {
+        subviews.flatMap { subview in
+            (subview as? T).map { [$0] } ?? [] + subview.descendants(of: type)
+        }
+    }
 }
 
 /// A picture of a page, shown while it turns.
