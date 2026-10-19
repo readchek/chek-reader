@@ -33,10 +33,24 @@ jobs:
     runs-on: ${{ vars.SELF_HOSTED_MAC == 'true' && github.event.pull_request.head.repo.fork != true && fromJSON('["self-hosted","chek-mac"]') || 'xcode-27' }}
     steps:
       - uses: actions/checkout@v7
-      - name: Check Xcode
+      # Use Xcode 27 wherever it's installed, since the machine's selected
+      # developer directory can be the Command Line Tools, which have no
+      # xcodebuild.
+      - name: Select Xcode 27
         run: |
-          xcodebuild -version
-          xcodebuild -version | grep -q '^Xcode 27' || { echo "::error::Expected Xcode 27"; exit 1; }
+          if xcodebuild -version 2>/dev/null | grep -q '^Xcode 27'; then
+            xcodebuild -version
+            exit 0
+          fi
+          for app in /Applications/Xcode*.app; do
+            if "$app/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | grep -q '^Xcode 27'; then
+              echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
+              "$app/Contents/Developer/usr/bin/xcodebuild" -version
+              exit 0
+            fi
+          done
+          echo "::error::Xcode 27 isn't installed in /Applications"
+          exit 1
       - name: Test package on macOS
         run: xcodebuild test -scheme ChekReader-Package -destination 'platform=macOS'
       - name: Build package for iOS Simulator
