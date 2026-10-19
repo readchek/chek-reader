@@ -144,6 +144,7 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
     private let scrollView = UIScrollView()
     private let imageView = UIImageView()
     private let spinner = UIActivityIndicatorView(style: .medium)
+    private let failure = PageFailureView()
     /// Whether the sharper image for zooming has been asked for.
     private var requestedZoomImage = false
     /// A tall page starts at its top, once.
@@ -200,9 +201,24 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
         accessibilityTraits = .image
         accessibilityLabel = String(localized: "Page \(index + 1)", bundle: .module)
 
+        failure.frame = view.bounds
+        failure.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        failure.retry = { [weak self] in self?.loadImage() }
+        view.addSubview(failure)
+
+        loadImage()
+    }
+
+    private func loadImage() {
+        failure.isHidden = true
         spinner.startAnimating()
         Task { [weak self] in
-            guard let self, let image = await pager?.image(at: index) else { return }
+            guard let self else { return }
+            guard let image = await pager?.image(at: index) else {
+                spinner.stopAnimating()
+                failure.isHidden = false
+                return
+            }
             show(image)
         }
     }

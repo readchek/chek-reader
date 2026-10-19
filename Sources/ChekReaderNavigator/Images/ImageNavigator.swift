@@ -236,15 +236,26 @@ final class ImageNavigator: ReaderNavigator {
         let size = maxPixelSize
         let width = widthPixels
         let task = Task { [weak self] () -> CGImage? in
-            guard let data = try? await publication.data(at: path) else { return nil }
-            let image = await PageDecoder.decode(data, maxPixelSize: size, minimumWidth: width)
+            var image: CGImage?
+            if let data = try? await publication.data(at: path) {
+                image = await PageDecoder.decode(data, maxPixelSize: size, minimumWidth: width)
+            }
             if let image {
                 self?.didDecode(image, at: index, size: size)
+            } else {
+                // A page that couldn't be fetched, such as from a source
+                // whose site timed out, is fetched again next time it's
+                // asked for rather than staying missing.
+                self?.didFail(at: index)
             }
             return image
         }
         loading[index] = task
         return task
+    }
+
+    private func didFail(at index: Int) {
+        loading[index] = nil
     }
 
     private func didDecode(_ image: CGImage, at index: Int, size: Int) {

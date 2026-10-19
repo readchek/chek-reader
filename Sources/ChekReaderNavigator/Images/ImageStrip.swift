@@ -177,8 +177,10 @@ private final class ImageStripCell: UICollectionViewCell {
     static let identifier = "ImageStripCell"
     private let imageView = UIImageView()
     private let spinner = UIActivityIndicatorView(style: .medium)
+    private let failure = PageFailureView()
     private var loading: Task<Void, Never>?
     private var index: Int?
+    private var load: (@MainActor () async -> UIImage?)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -194,6 +196,10 @@ private final class ImageStripCell: UICollectionViewCell {
             spinner.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
         ])
+        failure.frame = contentView.bounds
+        failure.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        failure.retry = { [weak self] in self?.start() }
+        contentView.addSubview(failure)
         isAccessibilityElement = true
         accessibilityTraits = .image
     }
@@ -208,17 +214,28 @@ private final class ImageStripCell: UICollectionViewCell {
         loading?.cancel()
         imageView.image = nil
         index = nil
+        load = nil
+        failure.isHidden = true
     }
 
     func show(index: Int, load: @escaping @MainActor () async -> UIImage?) {
         self.index = index
+        self.load = load
         accessibilityLabel = String(localized: "Page \(index + 1)", bundle: .module)
+        start()
+    }
+
+    private func start() {
+        guard let index, let load else { return }
+        failure.isHidden = true
         spinner.startAnimating()
+        loading?.cancel()
         loading = Task { [weak self] in
             let image = await load()
             guard let self, !Task.isCancelled, self.index == index else { return }
             spinner.stopAnimating()
             imageView.image = image
+            failure.isHidden = image != nil
         }
     }
 }
