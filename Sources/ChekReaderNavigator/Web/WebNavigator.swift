@@ -3,6 +3,9 @@ import ChekReaderCore
 import Foundation
 import Observation
 import WebKit
+#if os(iOS)
+import UIKit
+#endif
 
 /// Shows reflowable publications a page at a time.
 ///
@@ -79,6 +82,10 @@ final class WebNavigator: ReaderNavigator {
     @ObservationIgnored private var snapshotting: [BookPosition: Task<CGImage?, Never>] = [:]
     @ObservationIgnored private var lastSnapshot: Task<CGImage?, Never>?
     @ObservationIgnored let isRightToLeft: Bool
+    #if os(iOS)
+    /// The page's background, read from the latest picture of it.
+    @ObservationIgnored private(set) var pageColor: UIColor?
+    #endif
     private(set) var pageTransition: ReaderPreferences.PageTransition
 
     private static let world = WKContentWorld.world(name: ReaderScript.contentWorld)
@@ -290,6 +297,9 @@ final class WebNavigator: ReaderNavigator {
         if let image {
             snapshots[position] = image
             trimSnapshots()
+            #if os(iOS)
+            pageColor = image.cornerColor
+            #endif
         }
         return image
     }

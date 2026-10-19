@@ -66,6 +66,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
     private let navigator: WebNavigator
     let live: UIHostingController<Content>
     private lazy var liveController = LivePageController(hosting: live)
+    private let isCurl: Bool
     /// The turn waiting for the web content to catch up, so a new one
     /// doesn't start from a stale page.
     private var settling: Task<Void, Never>?
@@ -74,6 +75,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         self.navigator = navigator
         self.live = live
         let curl = navigator.pageTransition == .curl
+        isCurl = curl
         super.init(
             transitionStyle: curl ? .pageCurl : .scroll,
             navigationOrientation: .horizontal,
@@ -97,8 +99,32 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         for recognizer in gestureRecognizers where recognizer is UITapGestureRecognizer {
             recognizer.isEnabled = false
         }
-        setViewControllers([liveController], direction: .forward, animated: false)
+        isDoubleSided = isCurl
+        setViewControllers(pages(for: liveController), direction: .forward, animated: false)
         navigator.pager = self
+    }
+
+    /// `front`, and its back when pages curl.
+    private func pages(for front: UIViewController) -> [UIViewController] {
+        guard isCurl, let position = position(of: front) else { return [front] }
+        return [front, back(of: position, front: front)]
+    }
+
+    private func back(of position: BookPosition, front: UIViewController) -> PageBackController {
+        let snapshot = (front as? SnapshotPageController)?.image
+        let back = PageBackController(front: position, image: snapshot.map { UIImage(cgImage: $0) }, pageColor: pageColor)
+        if snapshot == nil {
+            Task { [weak back, navigator] in
+                let image = await navigator.snapshot(of: position)
+                back?.setImage(image.map { UIImage(cgImage: $0) })
+            }
+        }
+        return back
+    }
+
+    /// The color of the page, from the theme the content is drawn in.
+    private var pageColor: UIColor {
+        navigator.pageColor ?? .systemBackground
     }
 
     override func viewDidLayoutSubviews() {
@@ -114,7 +140,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         let page = SnapshotPageController(position: position, image: image, navigator: navigator)
         let animate = !UIAccessibility.isReduceMotionEnabled
         await withCheckedContinuation { continuation in
-            setViewControllers([page], direction: forward ? .forward : .reverse, animated: animate) { _ in
+            setViewControllers(pages(for: page), direction: forward ? .forward : .reverse, animated: animate) { _ in
                 continuation.resume()
             }
         }
@@ -128,7 +154,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
             await navigator.move(to: position)
             // Only swap if no other turn moved on in the meantime.
             guard (viewControllers?.first as? SnapshotPageController)?.position == position else { return }
-            setViewControllers([liveController], direction: .forward, animated: false)
+            setViewControllers(pages(for: liveController), direction: .forward, animated: false)
         }
     }
 
@@ -151,19 +177,33 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
 
     // MARK: - Data source
 
+    // With a curl, every front is followed by its back, so the page has
+    // something to show as it lifts.
+
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
+        if let back = viewController as? PageBackController, let position = back.front.base as? BookPosition {
+            return snapshotPage(at: position)
+        }
         guard let here = position(of: viewController), let target = navigator.position(before: here) else { return nil }
-        return snapshotPage(at: target)
+        let front = snapshotPage(at: target)
+        return isCurl ? back(of: target, front: front) : front
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
-        guard let here = position(of: viewController), let target = navigator.position(after: here) else { return nil }
+        if isCurl, !(viewController is PageBackController), let here = position(of: viewController) {
+            return back(of: here, front: viewController)
+        }
+        let here = (viewController as? PageBackController)?.front.base as? BookPosition ?? position(of: viewController)
+        guard let here, let target = navigator.position(after: here) else { return nil }
         return snapshotPage(at: target)
     }
 
     private func position(of viewController: UIViewController) -> BookPosition? {
         if let page = viewController as? SnapshotPageController {
             return page.position
+        }
+        if viewController is PageBackController {
+            return nil
         }
         return navigator.position
     }
@@ -255,7 +295,7 @@ private final class SnapshotPageController: UIViewController {
     let position: BookPosition
     private let imageView = UIImageView()
     private weak var navigator: WebNavigator?
-    private var image: CGImage?
+    private(set) var image: CGImage?
 
     init(position: BookPosition, image: CGImage?, navigator: WebNavigator) {
         self.position = position
@@ -273,7 +313,7 @@ private final class SnapshotPageController: UIViewController {
         super.viewDidLoad()
         // An opaque page, so the curl has a page to lift. The picture
         // carries the theme's own color when it arrives.
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = navigator?.pageColor ?? .systemBackground
         imageView.frame = view.bounds
         imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         imageView.contentMode = .scaleToFill
@@ -289,6 +329,7 @@ private final class SnapshotPageController: UIViewController {
     }
 
     private func show(_ image: CGImage) {
+        self.image = image
         let scale = view.window?.windowScene?.screen.scale ?? traitCollection.displayScale
         imageView.image = UIImage(cgImage: image, scale: scale, orientation: .up)
         if let corner = image.cornerColor {
@@ -297,7 +338,7 @@ private final class SnapshotPageController: UIViewController {
     }
 }
 
-private extension CGImage {
+extension CGImage {
     /// The color of the top-leading pixel, which is the page's background.
     var cornerColor: UIColor? {
         guard let data = dataProvider?.data, let bytes = CFDataGetBytePtr(data), bitsPerPixel >= 24 else { return nil }

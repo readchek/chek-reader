@@ -20,10 +20,12 @@ struct ImagePagerView: UIViewControllerRepresentable {
 /// The page view controller and the pages it turns.
 final class ImagePagerController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate, ImagePaging {
     private let navigator: ImageNavigator
+    private let isCurl: Bool
 
     init(navigator: ImageNavigator) {
         self.navigator = navigator
         let curl = navigator.pageTransition == .curl
+        isCurl = curl
         super.init(
             transitionStyle: curl ? .pageCurl : .scroll,
             navigationOrientation: .horizontal,
@@ -48,7 +50,8 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         for recognizer in gestureRecognizers where recognizer is UITapGestureRecognizer {
             recognizer.isEnabled = false
         }
-        setViewControllers([ImagePageController(index: navigator.index ?? 0, pager: self)], direction: .forward, animated: false)
+        isDoubleSided = isCurl
+        setViewControllers(pages(for: navigator.index ?? 0), direction: .forward, animated: false)
         navigator.pager = self
     }
 
@@ -62,7 +65,7 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         guard page != currentIndex else { return }
         let forward = page > (currentIndex ?? 0)
         setViewControllers(
-            [ImagePageController(index: page, pager: self)],
+            pages(for: page),
             direction: forward ? .forward : .reverse,
             animated: animated && !UIAccessibility.isReduceMotionEnabled
         )
@@ -70,19 +73,38 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
 
     // MARK: - Data source
 
+    /// The page at `index`, and its back when pages curl.
+    private func pages(for index: Int) -> [UIViewController] {
+        let front = ImagePageController(index: index, pager: self)
+        return isCurl ? [front, back(of: index)] : [front]
+    }
+
+    private func back(of index: Int) -> PageBackController {
+        let back = PageBackController(front: index, image: nil, pageColor: .black)
+        Task { [weak back, navigator] in
+            let image = await navigator.image(at: index)
+            back?.setImage(image.map { UIImage(cgImage: $0) })
+        }
+        return back
+    }
+
+    // With a curl, every front is followed by its back.
+
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
-        page(after: viewController, offset: -1)
+        if let back = viewController as? PageBackController, let index = back.front.base as? Int {
+            return ImagePageController(index: index, pager: self)
+        }
+        guard let page = viewController as? ImagePageController, page.index > 0 else { return nil }
+        return isCurl ? back(of: page.index - 1) : ImagePageController(index: page.index - 1, pager: self)
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
-        page(after: viewController, offset: 1)
-    }
-
-    private func page(after viewController: UIViewController, offset: Int) -> UIViewController? {
-        guard let page = viewController as? ImagePageController else { return nil }
-        let target = page.index + offset
-        guard target >= 0, target < navigator.pageCount else { return nil }
-        return ImagePageController(index: target, pager: self)
+        if isCurl, let page = viewController as? ImagePageController {
+            return back(of: page.index)
+        }
+        let index = (viewController as? PageBackController)?.front.base as? Int ?? (viewController as? ImagePageController)?.index
+        guard let index, index + 1 < navigator.pageCount else { return nil }
+        return ImagePageController(index: index + 1, pager: self)
     }
 
     // MARK: - Delegate
