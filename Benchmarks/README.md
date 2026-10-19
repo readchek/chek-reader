@@ -46,7 +46,10 @@ Each fixture runs through every reader that can open it, `--runs` times, each ru
 | `firstLocation` | Chek Reader, Readium | From adding the navigator to the window to its first location. For Readium that's `locationDidChange`, which its own UI tests treat as ready. Chek Reader's navigators report it once the chapter is loaded and paginated, the PDF is in its view, or the comic page is decoded |
 | `contentPainted` | Readium | Two animation frames after the first document's `load` event. Readium keeps the page hidden for at least 200 ms after that, so this is earlier than visible |
 | `pageTurn`, `pageTurnNewChapter` | Chek Reader, Readium | `goForward` without animation until it returns, split by whether the turn entered a new chapter |
+<<<<<<< HEAD
 | `pageTurnPaced`, `pageTurnNewChapterPaced` | Chek Reader | The same turns in a fresh session, one a second as a reader would turn them. Back-to-back turns reach the next chapter before it can load ahead, so they time the cold path and these the warm one |
+=======
+>>>>>>> origin/main
 | `relayoutFontSize` | Chek Reader, Readium | Font size from 100% to 150% until it's laid out. Readium's covers the visible chapter. Chek Reader's waits for `setPreferences`, which lays out every loaded chapter, up to three |
 | `relayoutLocationUpdate` | Chek Reader, Readium | The same change until the reader reports a new location, when it does |
 | `relayoutKeepsFirstElement` | Chek Reader, Readium | Whether the first visible element, or for Chek Reader the text at the start of the page, is the same after that change |
