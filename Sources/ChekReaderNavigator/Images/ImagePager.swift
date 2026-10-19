@@ -75,10 +75,10 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
 
     // MARK: - Data source
 
-    /// The page at `index`, and its back when pages curl.
+    /// The pages to set for `index`. With a spine at the edge, UIKit takes
+    /// the front alone, and asks the data source for its back.
     private func pages(for index: Int) -> [UIViewController] {
-        let front = ImagePageController(index: index, pager: self)
-        return isCurl ? [front, back(of: index)] : [front]
+        [ImagePageController(index: index, pager: self)]
     }
 
     private func back(of index: Int) -> PageBackController {
