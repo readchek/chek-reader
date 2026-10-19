@@ -32,6 +32,15 @@ import Testing
         #expect(controller.location?.href == "OEBPS/Text/chapter 1.xhtml")
     }
 
+    @Test func opensARemoteEPUBAtAnAddressWithoutAnExtension() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let server = RangeServer(EPUBFixture.book(EPUBFixture.epub3), url: URL(string: "https://books.example/api/v1/publications/12/file")!)
+        let controller = ReaderController()
+        try await controller.open(.remote(server.url, server.options()))
+        #expect(controller.state == .ready)
+        #expect(controller.format == .epub)
+    }
+
     @Test func opensAnEPUBAtItsStart() async throws {
         ReaderFormats.register(EPUBModule.self)
         let controller = ReaderController()

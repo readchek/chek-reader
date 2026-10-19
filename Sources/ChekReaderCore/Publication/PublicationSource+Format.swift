@@ -17,8 +17,15 @@ extension FormatSniffer {
             return format(of: prefix, fileName: url.lastPathComponent)
         case .data(let data, let fileName):
             return format(of: data, fileName: fileName)
-        case .remote(let url, _):
-            return format(forFileName: url.lastPathComponent)
+        case .remote(let url, let options):
+            // A name settles it without a request. Server APIs often serve
+            // files at addresses with no extension, such as
+            // `/publications/12/file`, so then the first bytes decide.
+            if let byName = format(forFileName: url.lastPathComponent) {
+                return byName
+            }
+            let prefix = try await HTTPByteSource.prefix(of: url, options: options, length: prefixLength)
+            return format(of: prefix, fileName: url.lastPathComponent)
         case .provider(let provider):
             return provider.format
         case .pages:

@@ -46,6 +46,18 @@ struct HTTPByteSource: Sendable {
         }
     }
 
+    /// The file's first `length` bytes, for working out its format. A
+    /// server that ignores ranges sends the whole file, which is cut short.
+    static func prefix(of url: URL, options: RemoteOptions, length: Int) async throws(ReaderError) -> Data {
+        var request = URLRequest(url: url)
+        request.setValue("bytes=0-\(max(length, 1) - 1)", forHTTPHeaderField: "Range")
+        let (data, response) = try await send(request, options: options)
+        guard response.statusCode == 206 || response.statusCode == 200 else {
+            throw status(response.statusCode, url: url)
+        }
+        return data.prefix(length)
+    }
+
     /// Downloads the whole file, for formats that can't be read in parts.
     /// Fails without keeping the body when it's larger than `maxBytes`.
     static func download(_ url: URL, options: RemoteOptions, maxBytes: Int64) async throws(ReaderError) -> Data {
