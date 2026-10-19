@@ -171,6 +171,8 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
         scrollView.showsVerticalScrollIndicator = false
         scrollView.contentInsetAdjustmentBehavior = .never
         scrollView.decelerationRate = .fast
+        scrollView.topEdgeEffect.isHidden = true
+        scrollView.bottomEdgeEffect.isHidden = true
         scrollView.frame = view.bounds
         scrollView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(scrollView)

@@ -65,6 +65,18 @@ final class PDFNavigator: NSObject, ReaderNavigator {
               let controller, controller.attach(self, session: session)
         else { return }
         view.document = document
+        #if os(iOS)
+        // PDFKit's own scroll views blur and tint the page under the
+        // reader's floating controls otherwise.
+        func hideEdgeEffects(in view: UIView) {
+            if let scrollView = view as? UIScrollView {
+                scrollView.topEdgeEffect.isHidden = true
+                scrollView.bottomEdgeEffect.isHidden = true
+            }
+            view.subviews.forEach(hideEdgeEffects)
+        }
+        hideEdgeEffects(in: self.view)
+        #endif
         if let location = controller.location {
             _ = await go(to: location)
         }

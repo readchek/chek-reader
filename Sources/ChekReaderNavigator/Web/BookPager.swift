@@ -295,6 +295,10 @@ private final class LivePageController: UIViewController {
             if scrollView.contentInsetAdjustmentBehavior != .never {
                 scrollView.contentInsetAdjustmentBehavior = .never
             }
+            // The edge effect blurs and tints the page under bars, which
+            // shows as a band of another color behind the floating controls.
+            scrollView.topEdgeEffect.isHidden = true
+            scrollView.bottomEdgeEffect.isHidden = true
         }
     }
 }

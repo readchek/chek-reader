@@ -48,6 +48,9 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         collectionView.backgroundColor = .black
         collectionView.contentInsetAdjustmentBehavior = .never
         collectionView.showsVerticalScrollIndicator = false
+        // No blur or tint under the reader's floating controls.
+        collectionView.topEdgeEffect.isHidden = true
+        collectionView.bottomEdgeEffect.isHidden = true
         collectionView.dataSource = self
         collectionView.delegate = self
         collectionView.prefetchDataSource = self
