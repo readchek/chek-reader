@@ -15,8 +15,13 @@ struct ImageNavigatorView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            content(in: geometry.size)
-                .frame(width: geometry.size.width, height: geometry.size.height)
+            // The stack is always there, even before the navigator exists,
+            // so the task below that creates it has something to run on.
+            ZStack {
+                Color.clear
+                content(in: geometry.size)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
             .focusable()
             .focusEffectDisabled()
             .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow, .space, .pageUp, .pageDown, .home, .end]) { press in
