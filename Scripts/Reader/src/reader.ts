@@ -105,7 +105,16 @@ const ChekReader = (() => {
         const columns = options.columns > 0
             ? Math.round(options.columns)
             : (width > height && width >= 900 ? 2 : 1);
-        const margin = Math.max(0, Math.min(options.margin * marginScale, width / 4));
+        // Lines past about 36em, some 75 characters, are tiring to follow,
+        // so wide screens such as an iPad's widen the margins instead. In
+        // ems, so larger text still gets longer lines.
+        const fontSize = Number.parseFloat(getComputedStyle(document.body ?? root()).fontSize) || 16;
+        const longestLine = fontSize * 36;
+        const margin = Math.max(
+            0,
+            Math.min(options.margin * marginScale, width / 4),
+            (width / columns - longestLine) / 2
+        );
         const verticalMargin = Math.max(0, Math.min(options.verticalMargin, height / 4));
         const html = root();
         // The body holds the columns and the root scrolls across the ones
