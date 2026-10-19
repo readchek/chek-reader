@@ -30,6 +30,12 @@ final class PDFNavigator: NSObject, ReaderNavigator {
         super.init()
 
         view.autoScales = true
+        // PDFKit paints a gray backdrop around pages; the app draws its own
+        // page color behind, so the surroundings run edge to edge in it.
+        view.backgroundColor = .clear
+        #if os(iOS)
+        view.pageShadowsEnabled = false
+        #endif
         view.displayMode = .singlePage
         view.displayDirection = .horizontal
         view.displaysPageBreaks = false
