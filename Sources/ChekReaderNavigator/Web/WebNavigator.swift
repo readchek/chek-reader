@@ -77,6 +77,7 @@ final class WebNavigator: ReaderNavigator {
     @ObservationIgnored private var snapshots: [BookPosition: CGImage] = [:]
     /// Snapshots being taken, so a page is only pictured once.
     @ObservationIgnored private var snapshotting: [BookPosition: Task<CGImage?, Never>] = [:]
+    @ObservationIgnored private var lastSnapshot: Task<CGImage?, Never>?
     @ObservationIgnored let isRightToLeft: Bool
     private(set) var pageTransition: ReaderPreferences.PageTransition
 
@@ -275,11 +276,15 @@ final class WebNavigator: ReaderNavigator {
     func snapshot(of position: BookPosition) async -> CGImage? {
         if let image = snapshots[position] { return image }
         if let running = snapshotting[position] { return await running.value }
+        // One at a time, since picturing a page moves a web page.
+        let previous = lastSnapshot
         let task = Task { [weak self] () -> CGImage? in
+            _ = await previous?.value
             guard let self else { return nil }
             return await self.takeSnapshot(of: position)
         }
         snapshotting[position] = task
+        lastSnapshot = task
         let image = await task.value
         snapshotting[position] = nil
         if let image {
@@ -289,15 +294,41 @@ final class WebNavigator: ReaderNavigator {
         return image
     }
 
+    /// Pictures a page by moving a web page to it. A web view only draws
+    /// what's on screen, so pages off screen can't be pictured in place.
+    /// Other resources' pages are hidden, so they move freely; a page of the
+    /// resource on screen moves under a picture of what's showing, and
+    /// moves back after.
     private func takeSnapshot(of position: BookPosition) async -> CGImage? {
         let size = viewportSize
         guard size.width > 0, size.height > 0 else { return nil }
         let slot = slot(for: position.resource)
         guard await isReady(slot, for: position.resource), let state = slot.state else { return nil }
         let page = resolved(position.page, count: state.pageCount)
-        // Pages sit side by side; the one shown is at the view's origin.
-        let offset = CGFloat(page - state.page) * size.width * (isRightToLeft ? -1 : 1)
-        let rect = CGRect(x: offset, y: 0, width: size.width, height: size.height)
+        if page == state.page {
+            return await picture(slot)
+        }
+        let onScreen = slot.resource == resourceIndex
+        let current = generation
+        if onScreen {
+            guard let showing = await picture(slot), current == generation else { return nil }
+            pager?.cover(with: showing)
+        }
+        defer {
+            if onScreen { pager?.uncover() }
+        }
+        guard await call("chekReader.goToPage(page, generation)", ["page": page], in: slot) != nil,
+              current == generation
+        else { return nil }
+        let image = await picture(slot)
+        if onScreen, current == generation {
+            _ = await call("chekReader.goToPage(page, generation)", ["page": state.page], in: slot)
+        }
+        return image
+    }
+
+    private func picture(_ slot: Slot) async -> CGImage? {
+        let rect = CGRect(origin: .zero, size: viewportSize)
         guard let data = try? await slot.page.exported(as: .image(region: .rect(rect))) else { return nil }
         return BookSnapshot.image(from: data)
     }

@@ -21,6 +21,10 @@ struct BookPosition: Hashable, Comparable, Sendable {
 protocol BookPaging: AnyObject {
     /// Turns to `position` with the page-turn animation.
     func turn(to position: BookPosition, forward: Bool) async
+    /// Shows `image` over the page while the content moves underneath to
+    /// picture another page.
+    func cover(with image: CGImage)
+    func uncover()
 }
 
 enum BookSnapshot {
@@ -126,6 +130,14 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         }
     }
 
+    func cover(with image: CGImage) {
+        liveController.cover(with: image)
+    }
+
+    func uncover() {
+        liveController.uncover()
+    }
+
     // MARK: - Data source
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
@@ -160,6 +172,9 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
 /// Holds the live web content as the page on screen.
 private final class LivePageController: UIViewController {
     private let hosting: UIViewController
+    private let coverView = UIImageView()
+    /// Covers can nest when several pages are pictured at once.
+    private var covers = 0
 
     init(hosting: UIViewController) {
         self.hosting = hosting
@@ -180,6 +195,25 @@ private final class LivePageController: UIViewController {
         hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(hosting.view)
         hosting.didMove(toParent: self)
+        coverView.frame = view.bounds
+        coverView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        coverView.isHidden = true
+        view.addSubview(coverView)
+    }
+
+    func cover(with image: CGImage) {
+        covers += 1
+        let scale = view.window?.windowScene?.screen.scale ?? traitCollection.displayScale
+        coverView.image = UIImage(cgImage: image, scale: scale, orientation: .up)
+        coverView.isHidden = false
+    }
+
+    func uncover() {
+        covers = max(covers - 1, 0)
+        if covers == 0 {
+            coverView.isHidden = true
+            coverView.image = nil
+        }
     }
 
     override func viewDidLayoutSubviews() {
