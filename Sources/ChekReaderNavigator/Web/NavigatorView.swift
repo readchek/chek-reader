@@ -48,19 +48,17 @@ private struct WebNavigatorView: View {
 
     var body: some View {
         ZStack {
+            Color.clear
             if let navigator {
-                // Every page stays in the hierarchy so it keeps its size and
-                // layout, and keeps its view while it's reused for other
-                // resources; only the one on screen is visible.
-                ForEach(navigator.slots) { slot in
-                    let isCurrent = slot.resource == navigator.resourceIndex
-                    WebView(slot.page)
-                        .scrollDisabled(true)
-                        .opacity(isCurrent ? 1 : 0)
-                        .allowsHitTesting(isCurrent)
-                        .accessibilityHidden(!isCurrent)
-                        .zIndex(isCurrent ? 1 : 0)
+                #if os(iOS)
+                // A different transition needs a new page view controller.
+                BookPagerView(navigator: navigator) {
+                    WebSlotsView(navigator: navigator)
                 }
+                .id(navigator.pageTransition)
+                #else
+                WebSlotsView(navigator: navigator)
+                #endif
             }
         }
         .task {
@@ -68,6 +66,28 @@ private struct WebNavigatorView: View {
             let created = WebNavigator(controller: controller, publication: publication)
             navigator = created
             await created.start()
+        }
+    }
+}
+
+/// Every web page, with only the one on screen visible.
+private struct WebSlotsView: View {
+    let navigator: WebNavigator
+
+    var body: some View {
+        ZStack {
+            // Every page stays in the hierarchy so it keeps its size and
+            // layout, and keeps its view while it's reused for other
+            // resources; only the one on screen is visible.
+            ForEach(navigator.slots) { slot in
+                let isCurrent = slot.resource == navigator.resourceIndex
+                WebView(slot.page)
+                    .scrollDisabled(true)
+                    .opacity(isCurrent ? 1 : 0)
+                    .allowsHitTesting(isCurrent)
+                    .accessibilityHidden(!isCurrent)
+                    .zIndex(isCurrent ? 1 : 0)
+            }
         }
     }
 }

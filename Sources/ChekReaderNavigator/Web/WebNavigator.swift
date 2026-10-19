@@ -64,6 +64,21 @@ final class WebNavigator: ReaderNavigator {
     @ObservationIgnored private var generation = 0
     /// Loads the resources next to the one on screen.
     @ObservationIgnored private var preloading: Task<Void, Never>?
+    /// The page-turning view, when there is one. Turns then animate, and
+    /// swipes are left to it.
+    @ObservationIgnored weak var pager: (any BookPaging)?
+    /// The size pages are laid out at, for snapshots of pages off screen.
+    @ObservationIgnored var viewportSize: CGSize = .zero {
+        didSet {
+            if viewportSize != oldValue { snapshots.removeAll() }
+        }
+    }
+    /// Pictures of pages for the page turn, by page.
+    @ObservationIgnored private var snapshots: [BookPosition: CGImage] = [:]
+    /// Snapshots being taken, so a page is only pictured once.
+    @ObservationIgnored private var snapshotting: [BookPosition: Task<CGImage?, Never>] = [:]
+    @ObservationIgnored let isRightToLeft: Bool
+    private(set) var pageTransition: ReaderPreferences.PageTransition
 
     private static let world = WKContentWorld.world(name: ReaderScript.contentWorld)
 
@@ -73,6 +88,8 @@ final class WebNavigator: ReaderNavigator {
         session = controller.session
         allowsScripts = controller.allowsPublicationScripts
         preferences = controller.preferences
+        pageTransition = controller.preferences.pageTransition
+        isRightToLeft = publication.metadata.readingProgression == .rightToLeft
         server = PublicationServer(publication: publication, allowsScripts: controller.allowsPublicationScripts)
     }
 
@@ -125,6 +142,18 @@ final class WebNavigator: ReaderNavigator {
     }
 
     private func perform(_ command: PageCommand) async -> Bool {
+        if let pager, let current = position {
+            let target: BookPosition?
+            switch command {
+            case .forward: target = position(after: current)
+            case .backward: target = position(before: current)
+            case .firstPage: target = BookPosition(resource: current.resource, page: 0)
+            case .lastPage: target = BookPosition(resource: current.resource, page: BookPosition.lastPage)
+            }
+            guard let target, target != current else { return false }
+            await pager.turn(to: target, forward: target > current)
+            return true
+        }
         guard let slot = currentSlot, let state = slot.state else { return false }
         let position = PagePosition(resource: slot.resource, page: state.page, pageCount: state.pageCount)
         let turn: PageTurn
@@ -166,6 +195,8 @@ final class WebNavigator: ReaderNavigator {
 
     func apply(_ preferences: ReaderPreferences) async {
         self.preferences = preferences
+        pageTransition = preferences.pageTransition
+        snapshots.removeAll()
         generation += 1
         let current = generation
         let arguments = ReaderScript.preferenceArguments(preferences)
@@ -193,6 +224,98 @@ final class WebNavigator: ReaderNavigator {
         _ = await go(to: locator)
     }
 
+    // MARK: - Turning with a pager
+
+    /// The page on screen.
+    var position: BookPosition? {
+        guard let slot = currentSlot, let state = slot.state else { return nil }
+        return BookPosition(resource: slot.resource, page: state.page)
+    }
+
+    /// The page after `position`, in the next resource after the last page.
+    func position(after position: BookPosition) -> BookPosition? {
+        let count = pageCount(of: position.resource)
+        let page = resolved(position.page, count: count)
+        if let count, page + 1 < count {
+            return BookPosition(resource: position.resource, page: page + 1)
+        }
+        guard count != nil, publication.readingOrder.indices.contains(position.resource + 1) else { return nil }
+        return BookPosition(resource: position.resource + 1, page: 0)
+    }
+
+    /// The page before `position`, the last of the previous resource before
+    /// the first page.
+    func position(before position: BookPosition) -> BookPosition? {
+        let page = resolved(position.page, count: pageCount(of: position.resource))
+        if page > 0 {
+            return BookPosition(resource: position.resource, page: page - 1)
+        }
+        guard publication.readingOrder.indices.contains(position.resource - 1) else { return nil }
+        return BookPosition(resource: position.resource - 1, page: BookPosition.lastPage)
+    }
+
+    /// Moves the web pages to `position` without animating; the pager has
+    /// already shown the turn.
+    func move(to position: BookPosition) async {
+        generation += 1
+        let current = generation
+        let slot = slot(for: position.resource)
+        guard await isReady(slot, for: position.resource), current == generation else { return }
+        let script = position.page == BookPosition.lastPage
+            ? "chekReader.goToLastPage(generation)"
+            : "chekReader.goToPage(page, generation)"
+        guard let state = await call(script, ["page": position.page], in: slot),
+              current == generation, slot.resource == position.resource
+        else { return }
+        show(slot, state: state)
+    }
+
+    /// A picture of the page at `position`, for the page turn. Pages off
+    /// screen are pictured without moving to them.
+    func snapshot(of position: BookPosition) async -> CGImage? {
+        if let image = snapshots[position] { return image }
+        if let running = snapshotting[position] { return await running.value }
+        let task = Task { [weak self] () -> CGImage? in
+            guard let self else { return nil }
+            return await self.takeSnapshot(of: position)
+        }
+        snapshotting[position] = task
+        let image = await task.value
+        snapshotting[position] = nil
+        if let image {
+            snapshots[position] = image
+            trimSnapshots()
+        }
+        return image
+    }
+
+    private func takeSnapshot(of position: BookPosition) async -> CGImage? {
+        let size = viewportSize
+        guard size.width > 0, size.height > 0 else { return nil }
+        let slot = slot(for: position.resource)
+        guard await isReady(slot, for: position.resource), let state = slot.state else { return nil }
+        let page = resolved(position.page, count: state.pageCount)
+        // Pages sit side by side; the one shown is at the view's origin.
+        let offset = CGFloat(page - state.page) * size.width * (isRightToLeft ? -1 : 1)
+        let rect = CGRect(x: offset, y: 0, width: size.width, height: size.height)
+        guard let data = try? await slot.page.exported(as: .image(region: .rect(rect))) else { return nil }
+        return BookSnapshot.image(from: data)
+    }
+
+    /// Keeps only the pictures of pages near the one on screen.
+    private func trimSnapshots() {
+        guard snapshots.count > 8, let here = position else { return }
+        snapshots = snapshots.filter { abs($0.key.resource - here.resource) <= 1 }
+    }
+
+    private func pageCount(of resource: Int) -> Int? {
+        slots.first { $0.resource == resource }?.state?.pageCount
+    }
+
+    private func resolved(_ page: Int, count: Int?) -> Int {
+        page == BookPosition.lastPage ? max((count ?? 1) - 1, 0) : page
+    }
+
     // MARK: - Slots
 
     private var currentSlot: Slot? {
@@ -213,6 +336,11 @@ final class WebNavigator: ReaderNavigator {
         let neighbors = [origin + 1, origin + 2, origin - 1].filter { publication.readingOrder.indices.contains($0) }
         preloading?.cancel()
         preloading = Task { [weak self] in
+            // The pages either side first, so the next turn has them ready.
+            if let self, let here = self.position, self.pager != nil {
+                if let next = self.position(after: here) { _ = await self.snapshot(of: next) }
+                if let previous = self.position(before: here) { _ = await self.snapshot(of: previous) }
+            }
             for neighbor in neighbors {
                 guard let self, !Task.isCancelled, self.resourceIndex == origin else { return }
                 _ = await self.slot(for: neighbor).ready?.value
@@ -363,6 +491,8 @@ final class WebNavigator: ReaderNavigator {
         }
         // Only the page on screen takes input; the others are hidden.
         guard resource == resourceIndex, let input = Self.input(type: type, message: message) else { return }
+        // The page-turning view follows swipes itself.
+        if pager != nil, case .swipe = input { return }
         guard let command = PageCommand(input, readingProgression: publication.metadata.readingProgression) else {
             if input == .tap(.center) {
                 controller?.navigatorDidTapMiddle(session: session)
