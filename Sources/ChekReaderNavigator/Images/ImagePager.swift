@@ -57,18 +57,67 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         navigator.pager = self
     }
 
+    fileprivate var navigatorForPages: ImageNavigator { navigator }
+
     private var currentIndex: Int? {
         (viewControllers?.first as? ImagePageController)?.index
+    }
+
+    /// Whether two pages show side by side, as an open book does: on a
+    /// screen wider than it is tall, where one page would sit narrow
+    /// between wide black margins. The cover stays alone, so the pairs
+    /// after it are the ones the artist drew to face each other.
+    private(set) var isSpread = false
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        var wide = view.bounds.width > view.bounds.height
+        #if DEBUG
+        // Simulators can't always be turned, so a debug run can ask for
+        // spreads outright.
+        if ProcessInfo.processInfo.environment["CHEK_READER_SPREADS"] == "1" {
+            wide = true
+        }
+        #endif
+        guard wide != isSpread else { return }
+        isSpread = wide
+        // Turning the device regroups the pages, keeping the one in view.
+        if let currentIndex {
+            setViewControllers(pages(for: currentIndex), direction: .forward, animated: false)
+        }
+    }
+
+    /// The first page of the spread `page` is in.
+    private func spreadStart(of page: Int) -> Int {
+        guard isSpread, page > 0 else { return page }
+        return page.isMultiple(of: 2) ? page - 1 : page
+    }
+
+    /// The page shown beside `start`, if any.
+    private func spreadPartner(of start: Int) -> Int? {
+        guard isSpread, start > 0, start + 1 < navigator.pageCount else { return nil }
+        return start + 1
+    }
+
+    private func startAfter(_ start: Int) -> Int? {
+        let next = isSpread && start > 0 ? start + 2 : start + 1
+        return next < navigator.pageCount ? next : nil
+    }
+
+    private func startBefore(_ start: Int) -> Int? {
+        guard start > 0 else { return nil }
+        return isSpread ? max(start - 2, 0) : start - 1
     }
 
     // MARK: - ImagePaging
 
     func display(page: Int, animated: Bool) {
-        guard page != currentIndex else { return }
-        let forward = page > (currentIndex ?? 0)
+        let target = spreadStart(of: page)
+        guard target != currentIndex else { return }
+        let forward = target > (currentIndex ?? 0)
         let animate = animated && !UIAccessibility.isReduceMotionEnabled
         setViewControllers(
-            pages(for: page, animated: animate),
+            pages(for: target, animated: animate),
             direction: forward ? .forward : .reverse,
             animated: animate
         )
@@ -76,19 +125,27 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
 
     // MARK: - Data source
 
+    private func page(at start: Int) -> ImagePageController {
+        ImagePageController(index: start, partner: spreadPartner(of: start), pager: self)
+    }
+
     /// The pages to set for `index`. With a spine at the edge, UIKit takes
     /// the front alone, and asks the data source for its back.
     private func pages(for index: Int, animated: Bool = false) -> [UIViewController] {
-        let front = ImagePageController(index: index, pager: self)
+        let front = page(at: spreadStart(of: index))
         // A double-sided curl takes the back too, but only when animated.
-        return isCurl && animated ? [front, back(of: index)] : [front]
+        return isCurl && animated ? [front, back(of: front.index)] : [front]
     }
 
     private func back(of index: Int) -> PageBackController {
         let back = PageBackController(front: index, image: nil, pageColor: .black)
-        Task { [weak back, navigator] in
-            let image = await navigator.image(at: index)
-            back?.setImage(image.map { UIImage(cgImage: $0) })
+        // A spread's back would be two pages too; plain black reads as a
+        // page's reverse well enough.
+        if !isSpread {
+            Task { [weak back, navigator] in
+                let image = await navigator.image(at: index)
+                back?.setImage(image.map { UIImage(cgImage: $0) })
+            }
         }
         return back
     }
@@ -97,19 +154,19 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
         if let back = viewController as? PageBackController, let index = back.front.base as? Int {
-            return ImagePageController(index: index, pager: self)
+            return page(at: index)
         }
-        guard let page = viewController as? ImagePageController, page.index > 0 else { return nil }
-        return isCurl ? back(of: page.index - 1) : ImagePageController(index: page.index - 1, pager: self)
+        guard let current = viewController as? ImagePageController, let previous = startBefore(current.index) else { return nil }
+        return isCurl ? back(of: previous) : page(at: previous)
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
-        if isCurl, let page = viewController as? ImagePageController {
-            return back(of: page.index)
+        if isCurl, let current = viewController as? ImagePageController {
+            return back(of: current.index)
         }
         let index = (viewController as? PageBackController)?.front.base as? Int ?? (viewController as? ImagePageController)?.index
-        guard let index, index + 1 < navigator.pageCount else { return nil }
-        return ImagePageController(index: index + 1, pager: self)
+        guard let index, let next = startAfter(index) else { return nil }
+        return page(at: next)
     }
 
     // MARK: - Delegate
@@ -137,9 +194,11 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
     }
 }
 
-/// One page, zoomable on its own.
+/// One page, or two side by side, zoomable as one.
 private final class ImagePageController: UIViewController, UIScrollViewDelegate {
     let index: Int
+    /// The page shown beside this one in a spread.
+    let partner: Int?
     private weak var pager: ImagePagerController?
     private let scrollView = UIScrollView()
     private let imageView = UIImageView()
@@ -150,8 +209,9 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
     /// A tall page starts at its top, once.
     private var hasPlacedTallPage = false
 
-    init(index: Int, pager: ImagePagerController) {
+    init(index: Int, partner: Int? = nil, pager: ImagePagerController) {
         self.index = index
+        self.partner = partner
         self.pager = pager
         super.init(nibName: nil, bundle: nil)
     }
@@ -199,7 +259,8 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
 
         isAccessibilityElement = true
         accessibilityTraits = .image
-        accessibilityLabel = String(localized: "Page \(index + 1)", bundle: .module)
+        accessibilityLabel = partner.map { String(localized: "Pages \(index + 1) and \($0 + 1)", bundle: .module) }
+            ?? String(localized: "Page \(index + 1)", bundle: .module)
 
         failure.frame = view.bounds
         failure.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -214,10 +275,20 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
         spinner.startAnimating()
         Task { [weak self] in
             guard let self else { return }
-            guard let image = await pager?.image(at: index) else {
+            guard var image = await pager?.image(at: index) else {
                 spinner.stopAnimating()
                 failure.isHidden = false
                 return
+            }
+            if let partner, let second = await pager?.image(at: partner) {
+                // The two pages drawn as one, so zooming and panning treat
+                // the spread as the single picture it reads as. Right to
+                // left, the earlier page is on the right.
+                let rightToLeft = pager?.navigatorForPages.isRightToLeft ?? false
+                image = await PageSpread.compose(left: rightToLeft ? second : image, right: rightToLeft ? image : second) ?? image
+                // The sharper zoom image is per page; the spread keeps
+                // what it has.
+                requestedZoomImage = true
             }
             show(image)
         }
