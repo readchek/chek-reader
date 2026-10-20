@@ -46,6 +46,9 @@ public final class ReaderController {
 
     /// Identifies the current session. Work tagged with an older value is stale.
     @ObservationIgnored private(set) var session = 0
+    /// What the current session opened, to open again when a preference
+    /// needs the publication parsed afresh.
+    @ObservationIgnored private var source: PublicationSource?
     @ObservationIgnored private weak var navigator: (any ReaderNavigator)?
 
     public init(
@@ -71,6 +74,7 @@ public final class ReaderController {
         publication = nil
         positions = nil
         navigator = nil
+        self.source = source
         self.location = location
 
         let detected: ReaderFormat?
@@ -93,7 +97,7 @@ public final class ReaderController {
             return try fail(error)
         }
 
-        let opened: Publication
+        var opened: Publication
         do {
             opened = try await module.open(source, format: detected, limits: limits)
         } catch {
@@ -101,6 +105,9 @@ public final class ReaderController {
             return try fail(error)
         }
         guard current == session else { return }
+        if let readingProgression = preferences.readingProgression {
+            opened = opened.withReadingProgression(readingProgression)
+        }
 
         guard NavigatorKind(opened) != nil else {
             return try fail(.notYetImplemented(detected))
@@ -132,6 +139,7 @@ public final class ReaderController {
     public func close() async {
         session += 1
         navigator = nil
+        source = nil
         guard state != .idle, state != .closed else { return }
         state = .closing
         publication = nil
@@ -196,8 +204,15 @@ public final class ReaderController {
     /// same passage on screen.
     public func setPreferences(_ preferences: ReaderPreferences) async {
         guard preferences != self.preferences else { return }
+        let reopens = preferences.readingProgression != self.preferences.readingProgression
         self.preferences = preferences
-        await navigator?.apply(preferences)
+        if reopens, state == .ready, let source {
+            // The direction is baked into every navigator's layout, so the
+            // publication opens again, at the same place.
+            try? await open(source, at: location)
+        } else {
+            await navigator?.apply(preferences)
+        }
     }
 
     private func goToChapter(offset: Int) async -> Bool {

@@ -1,3 +1,4 @@
+public import ChekReaderCore
 /// Reading settings the reader applies to reflowable text.
 ///
 /// Changing them lays the text out again and keeps the same passage on
@@ -69,6 +70,11 @@ public struct ReaderPreferences: Hashable, Sendable {
     }
     public var pageTransition: PageTransition
     public var comicFlow: ComicFlow
+    /// The direction pages advance in, or `nil` for the publication's own.
+    /// Sources and files often get it wrong for manga, so a reader can say.
+    /// Changing it while a publication is open opens it again at the same
+    /// place.
+    public var readingProgression: Publication.ReadingProgression?
 
     public init(
         fontScale: Double = 1,
@@ -77,7 +83,8 @@ public struct ReaderPreferences: Hashable, Sendable {
         lineHeight: Double? = nil,
         marginScale: Double = 1,
         pageTransition: PageTransition = .curl,
-        comicFlow: ComicFlow = .automatic
+        comicFlow: ComicFlow = .automatic,
+        readingProgression: Publication.ReadingProgression? = nil
     ) {
         self.fontScale = Self.clamped(fontScale, to: Self.fontScaleRange, default: 1)
         self.theme = theme
@@ -86,6 +93,7 @@ public struct ReaderPreferences: Hashable, Sendable {
         self.marginScale = Self.clamped(marginScale, to: Self.marginScaleRange, default: 1)
         self.pageTransition = pageTransition
         self.comicFlow = comicFlow
+        self.readingProgression = readingProgression
     }
 
     private static func clamped(_ value: Double, to range: ClosedRange<Double>, default fallback: Double) -> Double {

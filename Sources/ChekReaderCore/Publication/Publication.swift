@@ -74,6 +74,24 @@ public struct Publication: Sendable {
         return try await module.open(source, format: format, limits: limits)
     }
 
+    /// This publication with its pages advancing in `readingProgression`,
+    /// for a reader that knows better than the file or source did.
+    public func withReadingProgression(_ readingProgression: ReadingProgression) -> Publication {
+        var metadata = metadata
+        metadata.readingProgression = readingProgression
+        return Publication(
+            format: format,
+            metadata: metadata,
+            readingOrder: readingOrder,
+            tableOfContents: tableOfContents,
+            pageList: pageList,
+            landmarks: landmarks,
+            resources: resources,
+            warnings: warnings,
+            container: container
+        )
+    }
+
     /// Every link in the publication: the reading order, then other resources.
     public var allLinks: [Link] {
         readingOrder + resources
