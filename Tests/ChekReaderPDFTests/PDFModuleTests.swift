@@ -2,9 +2,6 @@ import ChekReaderCore
 import ChekReaderPDF
 import ChekReaderTestSupport
 import Foundation
-#if canImport(PDFKit)
-import PDFKit
-#endif
 import Testing
 
 @Suite struct PDFModuleTests {
@@ -42,17 +39,6 @@ import Testing
         // Searching goes through the registry, as an app's does.
         ReaderFormats.register(PDFModule.self)
         let found = try await publication.search(for: "lighthouse")
-        if found.count != 3 {
-            struct Unexpected: Error, CustomStringConvertible { let description: String }
-            let document = PDFDocument(data: file)
-            var report = "found=\(found.count) pages=\(document?.pageCount ?? -1) locked=\(document?.isLocked ?? true)"
-            for index in 0..<(document?.pageCount ?? 0) {
-                let page = document?.page(at: index)
-                report += " [\(index): chars=\(page?.numberOfCharacters ?? -1) string=\(page?.string ?? "nil")]"
-            }
-            report += " find=\(document?.findString("lighthouse", withOptions: [.caseInsensitive]).count ?? -1)"
-            throw Unexpected(description: report)
-        }
         #expect(found.map(\.locations.fragments) == [["page=1"], ["page=3"], ["page=3"]])
         #expect(found.map(\.title) == ["Chapter One", "Chapter Two", "Chapter Two"])
         #expect(found.map(\.locations.progression) == [0, 0.5, 0.5])
