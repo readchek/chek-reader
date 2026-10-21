@@ -33,9 +33,9 @@ public enum PDFModule: ReaderFormatModule {
         #endif
     }
 
-    /// Finds `query` with PDFKit. Each result names its page with a
-    /// `page=N` fragment and carries the matched text with some text around
-    /// it from that page.
+    /// Finds `query` in the text PDFKit reads from each page. Each result
+    /// names its page with a `page=N` fragment and carries the matched text
+    /// with some text around it from that page.
     public static func search(_ publication: Publication, for query: String, options: SearchOptions) async throws(ReaderError) -> [Locator]? {
         #if canImport(PDFKit)
         guard publication.format == .pdf else { return nil }
@@ -44,25 +44,12 @@ public enum PDFModule: ReaderFormatModule {
         guard let document = PDFDocument(data: data), !document.isLocked else { return [] }
         let titles = PDFOutline.titles(in: publication.tableOfContents)
         var found: [Locator] = []
-        // Where the last match on each page ended, so context comes from
-        // the right occurrence when a page repeats the text.
-        var searched: [Int: String.Index] = [:]
-        for selection in document.findString(query, withOptions: options.compareOptions).prefix(options.limit) {
+        // Each page's text is searched the way reflowable text is, so
+        // matches and their context come out the same across formats.
+        for index in 0..<document.pageCount where found.count < options.limit {
             try ReaderError.checkCancellation()
-            guard let page = selection.pages.first else { continue }
-            let index = document.index(for: page)
-            guard index != NSNotFound else { continue }
-            var text = Locator.Text(highlight: selection.string ?? query)
-            if let highlight = text.highlight, let pageText = page.string,
-               let range = pageText.range(of: highlight, options: options.compareOptions, range: (searched[index] ?? pageText.startIndex)..<pageText.endIndex) {
-                let context = Publication.searchContextLength
-                let before = pageText.index(range.lowerBound, offsetBy: -context, limitedBy: pageText.startIndex) ?? pageText.startIndex
-                let after = pageText.index(range.upperBound, offsetBy: context, limitedBy: pageText.endIndex) ?? pageText.endIndex
-                text.before = String(pageText[before..<range.lowerBound])
-                text.after = String(pageText[range.upperBound..<after])
-                searched[index] = range.upperBound
-            }
-            found.append(Locator(
+            guard let text = document.page(at: index)?.string, !text.isEmpty else { continue }
+            let page = Locator(
                 href: href,
                 mediaType: "application/pdf",
                 title: titles.last { $0.page <= index }?.title,
@@ -70,8 +57,15 @@ public enum PDFModule: ReaderFormatModule {
                     fragments: ["page=\(index + 1)"],
                     progression: Double(index) / Double(document.pageCount)
                 ),
-                text: text
-            ))
+                text: nil
+            )
+            let first = found.count
+            Publication.find(query, in: text, options: options, resource: page, into: &found)
+            // A match's place within a resource is its page here, not an
+            // offset into the whole file.
+            for match in first..<found.count {
+                found[match].locations = page.locations
+            }
         }
         return found
         #else
