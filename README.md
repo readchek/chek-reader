@@ -80,6 +80,20 @@ struct MyApp: App {
 }
 ```
 
+`ReaderView` draws the standard controls: a tap in the middle of the page shows a title bar with the table of contents, search and appearance settings, and a slider through the book's positions. Pass the location and settings saved last time, and keep what the reader reports back:
+
+```swift
+ReaderView(
+    source: .file(bookURL),
+    initialLocation: savedLocation,
+    preferences: savedPreferences,
+    onLocationChange: { save($0) },
+    onPreferencesChange: { savePreferences($0) }
+)
+```
+
+Apps that draw their own interface around `NavigatorView` can reuse the pieces on their own: `ReaderControls`, `TableOfContentsView`, `SearchView` and `AppearanceView` each take a `ReaderController`.
+
 An app that links only some format products registers those instead:
 
 ```swift
@@ -132,6 +146,15 @@ controller.location?.locations.position          // like a page number that does
 controller.location?.locations.totalProgression  // 0 to 1 through the whole book
 await controller.goForward()
 await controller.setPreferences(ReaderPreferences(fontScale: 1.5, theme: .dark))
+```
+
+Searching reads every chapter, so run it off the critical path. Each result is a `Locator` with the matched text and the words around it, in reading order, that `go(to:)` opens at the page holding the match. PDF searches through PDFKit, and comics find nothing:
+
+```swift
+let results = try await controller.search(for: "lighthouse", options: SearchOptions(caseSensitive: false, limit: 100))
+results.first?.text        // before, highlight and after
+results.first?.title       // the chapter's title, when the table of contents names it
+await controller.go(to: results[0])
 ```
 
 ## Repository layout

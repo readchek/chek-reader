@@ -215,6 +215,20 @@ public final class ReaderController {
         }
     }
 
+    /// Finds `query` in the open publication.
+    ///
+    /// Each result is a ``Locator`` that ``go(to:)`` opens at the page
+    /// holding the match, with the matched text and some text around it,
+    /// and its position once ``positions`` are ready. Finds nothing when no
+    /// publication is open, or when the session changes while searching.
+    public func search(for query: String, options: SearchOptions = SearchOptions()) async throws(ReaderError) -> [Locator] {
+        guard state == .ready, let publication else { return [] }
+        let current = session
+        let found = try await publication.search(for: query, options: options)
+        guard current == session else { return [] }
+        return found.map(located)
+    }
+
     private func goToChapter(offset: Int) async -> Bool {
         guard let publication, let location, let index = publication.readingOrderIndex(of: location) else {
             return false
