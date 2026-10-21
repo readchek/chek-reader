@@ -36,6 +36,7 @@ import Testing
             3: "Below, the lighthouse lamp turned on. The lighthouse shone.",
         ]))
         let found = try await publication.search(for: "lighthouse")
+        #expect(found.count == 3, "\(found.map { ($0.locations.fragments, $0.text?.before ?? "", $0.text?.highlight ?? "", $0.text?.after ?? "") })")
         #expect(found.map(\.locations.fragments) == [["page=1"], ["page=3"], ["page=3"]])
         #expect(found.map(\.title) == ["Chapter One", "Chapter Two", "Chapter Two"])
         #expect(found.map(\.locations.progression) == [0, 0.5, 0.5])
