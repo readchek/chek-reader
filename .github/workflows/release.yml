@@ -1,0 +1,40 @@
+name: Release
+
+# Cuts a release: tags `main` with the version and pushes the tag. Apps
+# depend on the package `from:` a version, so a release is nothing more
+# than the tag. Run it from the Actions tab, or push the tag by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to tag, such as 0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Tag ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Tag main
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$VERSION' is not a version such as 0.1.0"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null; then
+            echo "::error::$VERSION is already tagged"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Chek Reader $VERSION"
+          git push origin "refs/tags/$VERSION"

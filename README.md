@@ -44,7 +44,9 @@ dependencies: [
 
 Releases are tags on `main` named by version, such as `0.1.0`; `from:` takes
 that release and later ones up to the next major. To follow unreleased
-changes instead, depend on `branch: "main"`.
+changes instead, depend on `branch: "main"`. Maintainers cut a release by
+running the Release workflow in the Actions tab with the version, which tags
+`main` and pushes the tag.
 
 Then pick the products the app needs. Apps only compile and ship the formats they include.
 
