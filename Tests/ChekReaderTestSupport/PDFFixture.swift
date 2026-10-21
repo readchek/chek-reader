@@ -17,6 +17,8 @@ package enum PDFFixture {
 
     /// A PDF with `pageCount` pages, an outline and document info. Pages are
     /// blank unless `text` gives them a line of ASCII text, by 1-based page.
+    /// Pages are letter-sized, because PDFKit reads only the text inside
+    /// the page's box, and a line of 12-point text needs the room.
     package static func document(
         pageCount: Int = 3,
         title: String? = "The Lighthouse",
@@ -47,11 +49,11 @@ package enum PDFFixture {
                 let escaped = line.replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "(", with: "\\(")
                     .replacingOccurrences(of: ")", with: "\\)")
-                let stream = "BT /F1 12 Tf 20 270 Td (\(escaped)) Tj ET"
+                let stream = "BT /F1 12 Tf 36 740 Td (\(escaped)) Tj ET"
                 content = add("<< /Length \(stream.utf8.count) >>\nstream\n\(stream)\nendstream")
                 resources = "<< /Font << /F1 \(font) 0 R >> >>"
             }
-            return add("<< /Type /Page /Parent \(pages) 0 R /MediaBox [0 0 200 300] /Contents \(content) 0 R /Resources \(resources) >>")
+            return add("<< /Type /Page /Parent \(pages) 0 R /MediaBox [0 0 612 792] /Contents \(content) 0 R /Resources \(resources) >>")
         }
         objects[pages - 1] = "<< /Type /Pages /Kids [\(pageIDs.map { "\($0) 0 R" }.joined(separator: " "))] /Count \(pageCount) >>"
 

@@ -31,10 +31,13 @@ import Testing
     }
 
     @Test func findsTextOnPages() async throws {
-        let publication = try await open(PDFFixture.document(pageCount: 4, text: [
+        let file = PDFFixture.document(pageCount: 4, text: [
             1: "The keeper climbed the lighthouse.",
             3: "Below, the lighthouse lamp turned on. The lighthouse shone.",
-        ]))
+        ])
+        let publication = try await open(file)
+        // Searching goes through the registry, as an app's does.
+        ReaderFormats.register(PDFModule.self)
         let found = try await publication.search(for: "lighthouse")
         #expect(found.map(\.locations.fragments) == [["page=1"], ["page=3"], ["page=3"]])
         #expect(found.map(\.title) == ["Chapter One", "Chapter Two", "Chapter Two"])
