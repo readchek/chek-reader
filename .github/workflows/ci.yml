@@ -23,6 +23,9 @@ jobs:
     container: swift:6.4-noble
     steps:
       - uses: actions/checkout@v7
+      # The archives add-on links the system libarchive on Linux.
+      - name: Install libarchive
+        run: apt-get update && apt-get install -y libarchive-dev
       - name: Build
         run: swift build --build-tests
       - name: Test

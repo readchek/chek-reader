@@ -1,0 +1,16 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Page %lld": {
+      "comment": "Accessibility label of a comic page"
+    },
+    "Pages %lld and %lld": {
+      "comment": "Accessibility label of two comic pages shown side by side"
+    },
+    "This page couldn't load.": {},
+    "Try Again": {
+      "comment": "Button that loads a failed page again"
+    }
+  },
+  "version": "1.0"
+}
