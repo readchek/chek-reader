@@ -80,6 +80,20 @@ struct MyApp: App {
 }
 ```
 
+`ReaderView` draws the standard controls: a tap in the middle of the page shows a title bar with the table of contents, search and appearance settings, and a slider through the book's positions. Pass the location and settings saved last time, and keep what the reader reports back:
+
+```swift
+ReaderView(
+    source: .file(bookURL),
+    initialLocation: savedLocation,
+    preferences: savedPreferences,
+    onLocationChange: { save($0) },
+    onPreferencesChange: { savePreferences($0) }
+)
+```
+
+Apps that draw their own interface around `NavigatorView` can reuse the pieces on their own: `ReaderControls`, `TableOfContentsView`, `SearchView` and `AppearanceView` each take a `ReaderController`.
+
 An app that links only some format products registers those instead:
 
 ```swift

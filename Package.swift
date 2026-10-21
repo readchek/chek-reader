@@ -7,6 +7,16 @@ let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("ExistentialAny"),
 ]
 
+/// String Catalogs compile on Apple platforms only. SwiftPM on Linux has no
+/// rule for them, so they're left out there rather than warned about.
+#if os(Linux)
+let catalogExclusions = ["Resources/Localizable.xcstrings"]
+let catalogResources: [Resource] = []
+#else
+let catalogExclusions: [String] = []
+let catalogResources: [Resource] = [.process("Resources/Localizable.xcstrings")]
+#endif
+
 /// A format product: one target that depends on the core and nothing else.
 func format(_ name: String) -> Target {
     .target(
@@ -58,12 +68,15 @@ let package = Package(
             name: "ChekReaderNavigator",
             dependencies: ["ChekReaderCore"],
             // Compiled from Scripts/Reader; CI checks it matches the source.
-            resources: [.copy("Resources/reader.js")],
+            exclude: catalogExclusions,
+            resources: [.copy("Resources/reader.js")] + catalogResources,
             swiftSettings: swiftSettings
         ),
         .target(
             name: "ChekReaderUI",
             dependencies: ["ChekReaderCore", "ChekReaderNavigator"],
+            exclude: catalogExclusions,
+            resources: catalogResources,
             swiftSettings: swiftSettings
         ),
         .target(

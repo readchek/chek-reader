@@ -1,0 +1,97 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "%lld of %lld": {
+      "comment": "The reading position and the number of positions, like a page number: 12 of 300"
+    },
+    "%lld results": {
+      "comment": "Section header above search results",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld result"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld results"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Appearance": {
+      "comment": "The reading settings button and sheet title"
+    },
+    "Automatic": {},
+    "Changing the direction opens the publication again at the same place.": {},
+    "Chapter %lld": {},
+    "Colors": {},
+    "Comic Layout": {},
+    "Compact": {},
+    "Contents": {
+      "comment": "The table of contents button and sheet title"
+    },
+    "Curl": {
+      "comment": "A page turn that curls over like paper"
+    },
+    "Current chapter": {},
+    "Dark": {},
+    "Done": {},
+    "Find a word or phrase in this publication.": {},
+    "Find in publication": {},
+    "Font": {},
+    "Larger text": {
+      "comment": "Accessibility label of the large A button that enlarges the text"
+    },
+    "Left to Right": {},
+    "Light": {},
+    "Line Height": {},
+    "Loose": {},
+    "Manga reads right to left. Changing the direction opens the publication again at the same page.": {},
+    "Margins": {},
+    "Narrow": {},
+    "Next chapter": {},
+    "No Contents": {},
+    "None": {
+      "comment": "No page margins"
+    },
+    "Normal": {},
+    "Original": {
+      "comment": "The publication's own font, colors, line height or reading direction"
+    },
+    "Page Turn": {},
+    "Page by Page": {},
+    "Pages": {},
+    "Previous chapter": {},
+    "Reading Direction": {},
+    "Reading position": {},
+    "Relaxed": {},
+    "Right to Left": {},
+    "Sans Serif": {},
+    "Scrolling": {},
+    "Search": {},
+    "Search Failed": {},
+    "Sepia": {},
+    "Serif": {},
+    "Slide": {
+      "comment": "A page turn where the next page slides in beside this one"
+    },
+    "Smaller text": {
+      "comment": "Accessibility label of the small A button that shrinks the text"
+    },
+    "Text": {},
+    "Text size": {},
+    "Theme": {},
+    "This publication has no table of contents.": {},
+    "Wide": {}
+  },
+  "version": "1.0"
+}
