@@ -1,0 +1,7 @@
+// libarchive from the system, for Linux. Apple platforms get it from the
+// libarchive.xcframework package instead; see Package.swift.
+module CLibArchive [system] {
+    header "shim.h"
+    link "archive"
+    export *
+}

@@ -30,6 +30,25 @@ import Testing
         #expect(positions.locator(at: 3)?.locations.progression == 0.4)
     }
 
+    @Test func findsTextOnPages() async throws {
+        let file = PDFFixture.document(pageCount: 4, text: [
+            1: "The keeper climbed the lighthouse.",
+            3: "Below, the lighthouse lamp turned on. The lighthouse shone.",
+        ])
+        let publication = try await open(file)
+        // Searching goes through the registry, as an app's does.
+        ReaderFormats.register(PDFModule.self)
+        let found = try await publication.search(for: "lighthouse")
+        #expect(found.map(\.locations.fragments) == [["page=1"], ["page=3"], ["page=3"]])
+        #expect(found.map(\.title) == ["Chapter One", "Chapter Two", "Chapter Two"])
+        #expect(found.map(\.locations.progression) == [0, 0.5, 0.5])
+        #expect(found.map { $0.text?.highlight } == ["lighthouse", "lighthouse", "lighthouse"])
+        #expect(found[1].text?.before?.hasSuffix("Below, the ") == true)
+        #expect(found[2].text?.before?.hasSuffix("turned on. The ") == true)
+        #expect(try await publication.search(for: "LIGHTHOUSE", options: SearchOptions(caseSensitive: true)).isEmpty)
+        #expect(try await publication.search(for: "lighthouse", options: SearchOptions(limit: 1)).count == 1)
+    }
+
     @Test func outlineBecomesTheTableOfContents() async throws {
         let toc = try await open(PDFFixture.document()).tableOfContents
         #expect(toc.map(\.title) == ["Chapter One", "Chapter Two"])

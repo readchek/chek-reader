@@ -10,6 +10,13 @@ public protocol ReaderFormatModule: Sendable {
     /// Apps call ``Publication/open(_:limits:)`` rather than this, so the
     /// format is detected and the right module chosen.
     static func open(_ source: PublicationSource, format: ReaderFormat, limits: ReaderLimits) async throws(ReaderError) -> Publication
+
+    /// Finds `query` in a publication this module opened, for formats whose
+    /// text the core can't read from markup, such as PDF.
+    ///
+    /// Apps call ``Publication/search(for:options:)`` rather than this.
+    /// Returning `nil` has the core search the publication's HTML resources.
+    static func search(_ publication: Publication, for query: String, options: SearchOptions) async throws(ReaderError) -> [Locator]?
 }
 
 extension ReaderFormatModule {
@@ -17,6 +24,11 @@ extension ReaderFormatModule {
     /// engines replace this as they land.
     public static func open(_ source: PublicationSource, format: ReaderFormat, limits: ReaderLimits) async throws(ReaderError) -> Publication {
         throw .notYetImplemented(format)
+    }
+
+    /// Leaves searching to the core, which reads the publication's HTML.
+    public static func search(_ publication: Publication, for query: String, options: SearchOptions) async throws(ReaderError) -> [Locator]? {
+        nil
     }
 }
 
