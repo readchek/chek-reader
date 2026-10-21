@@ -15,7 +15,8 @@ package enum PDFFixture {
         }
     }
 
-    /// A PDF with `pageCount` blank pages, an outline and document info.
+    /// A PDF with `pageCount` pages, an outline and document info. Pages are
+    /// blank unless `text` gives them a line of ASCII text, by 1-based page.
     package static func document(
         pageCount: Int = 3,
         title: String? = "The Lighthouse",
@@ -23,7 +24,8 @@ package enum PDFFixture {
         outline: [Entry] = [
             Entry("Chapter One", page: 1),
             Entry("Chapter Two", page: 3, children: [Entry("Section", page: 3)]),
-        ]
+        ],
+        text: [Int: String] = [:]
     ) -> Data {
         var objects: [String] = []
         func add(_ body: String) -> Int {
@@ -36,9 +38,20 @@ package enum PDFFixture {
 
         let catalog = reserve()
         let pages = reserve()
-        let content = add("<< /Length 0 >>\nstream\n\nendstream")
-        let pageIDs = (0..<pageCount).map { _ in
-            add("<< /Type /Page /Parent \(pages) 0 R /MediaBox [0 0 200 300] /Contents \(content) 0 R /Resources << >> >>")
+        let blank = add("<< /Length 0 >>\nstream\n\nendstream")
+        let font = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        let pageIDs = (0..<pageCount).map { index in
+            var content = blank
+            var resources = "<< >>"
+            if let line = text[index + 1] {
+                let escaped = line.replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "(", with: "\\(")
+                    .replacingOccurrences(of: ")", with: "\\)")
+                let stream = "BT /F1 12 Tf 20 270 Td (\(escaped)) Tj ET"
+                content = add("<< /Length \(stream.utf8.count) >>\nstream\n\(stream)\nendstream")
+                resources = "<< /Font << /F1 \(font) 0 R >> >>"
+            }
+            return add("<< /Type /Page /Parent \(pages) 0 R /MediaBox [0 0 200 300] /Contents \(content) 0 R /Resources \(resources) >>")
         }
         objects[pages - 1] = "<< /Type /Pages /Kids [\(pageIDs.map { "\($0) 0 R" }.joined(separator: " "))] /Count \(pageCount) >>"
 

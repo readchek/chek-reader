@@ -148,6 +148,15 @@ await controller.goForward()
 await controller.setPreferences(ReaderPreferences(fontScale: 1.5, theme: .dark))
 ```
 
+Searching reads every chapter, so run it off the critical path. Each result is a `Locator` with the matched text and the words around it, in reading order, that `go(to:)` opens at the page holding the match. PDF searches through PDFKit, and comics find nothing:
+
+```swift
+let results = try await controller.search(for: "lighthouse", options: SearchOptions(caseSensitive: false, limit: 100))
+results.first?.text        // before, highlight and after
+results.first?.title       // the chapter's title, when the table of contents names it
+await controller.go(to: results[0])
+```
+
 ## Repository layout
 
 ```text
