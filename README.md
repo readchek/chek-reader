@@ -38,9 +38,13 @@ Add the package with Swift Package Manager:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/readchek/chek-reader.git", branch: "main"),
+    .package(url: "https://github.com/readchek/chek-reader.git", from: "0.1.0"),
 ],
 ```
+
+Releases are tags on `main` named by version, such as `0.1.0`; `from:` takes
+that release and later ones up to the next major. To follow unreleased
+changes instead, depend on `branch: "main"`.
 
 Then pick the products the app needs. Apps only compile and ship the formats they include.
 
