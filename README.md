@@ -14,7 +14,7 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. CBZ and CBT comics show a page at a time too, with `ComicInfo.xml` metadata and right-to-left manga. Plain text and Markdown are converted to XHTML and read like EPUB, split into chapters at their headings, and so are FictionBooks, plain or zipped, with their embedded images and notes. DRM-free MOBI and AZW3 books open the same ways, rebuilt into HTML documents. CBR and CB7, in the optional archives add-on, are still on their way.
+> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. CBZ and CBT comics show a page at a time too, with `ComicInfo.xml` metadata and right-to-left manga. Plain text and Markdown are converted to XHTML and read like EPUB, split into chapters at their headings, and so are FictionBooks, plain or zipped, with their embedded images and notes. DRM-free MOBI and AZW3 books open the same ways, rebuilt into HTML documents. CBR and CB7 open through the optional archives add-on, which links libarchive.
 
 ## Overview
 
@@ -56,7 +56,7 @@ Then pick the products the app needs. Apps only compile and ship the formats the
 | `ChekReaderFB2` | FictionBook, plain and zipped |
 | `ChekReaderNavigator` | `ReaderController` and the content views, for apps that draw their own controls |
 | `ChekReaderUI` | `ReaderView` with the standard Liquid Glass controls |
-| `ChekReaderArchives` | Optional add-on for CBR and CB7. Not in the umbrella |
+| `ChekReaderArchives` | Optional add-on for CBR and CB7, linking libarchive. Not in the umbrella |
 
 ## Usage
 
@@ -171,6 +171,17 @@ npm test                                                    # compiles, then tes
 ```
 
 See [AGENTS.md](AGENTS.md) for the conventions contributors and coding agents follow.
+
+## Dependencies
+
+The core, format and UI products depend only on Apple frameworks and the Swift standard library. The optional `ChekReaderArchives` product links [libarchive](https://github.com/libarchive/libarchive) (BSD-2-Clause): on Apple platforms as a prebuilt static XCFramework from [Lakr233/libarchive.xcframework](https://github.com/Lakr233/libarchive.xcframework) (MIT packaging, with xz, zstd and lz4 under 0BSD and BSD licenses), pinned to one release, and on Linux as the system library from `libarchive-dev`. Register it alongside the defaults to read CBR and CB7:
+
+```swift
+import ChekReaderArchives
+
+ReaderFormats.registerDefaults()
+ReaderFormats.register(ArchivesModule.self)
+```
 
 ## License
 

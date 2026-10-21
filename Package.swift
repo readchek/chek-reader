@@ -7,6 +7,24 @@ let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("ExistentialAny"),
 ]
 
+/// libarchive, which the optional archives add-on links for CBR and CB7.
+/// Apple platforms get it as a prebuilt static XCFramework from
+/// Lakr233/libarchive.xcframework, which the Linux job can't use, so Linux
+/// links the system library (`apt-get install libarchive-dev`).
+#if os(Linux)
+let libarchivePackages: [Package.Dependency] = []
+let libarchiveTargets: [Target] = [
+    .systemLibrary(name: "CLibArchive", pkgConfig: "libarchive", providers: [.apt(["libarchive-dev"])]),
+]
+let libarchive: Target.Dependency = "CLibArchive"
+#else
+let libarchivePackages: [Package.Dependency] = [
+    .package(url: "https://github.com/Lakr233/libarchive.xcframework.git", exact: "1.0.1"),
+]
+let libarchiveTargets: [Target] = []
+let libarchive: Target.Dependency = .product(name: "ArchiveKit", package: "libarchive.xcframework")
+#endif
+
 /// A format product: one target that depends on the core and nothing else.
 func format(_ name: String) -> Target {
     .target(
@@ -43,7 +61,8 @@ let package = Package(
         // open CBR or CB7 never link it.
         .library(name: "ChekReaderArchives", targets: ["ChekReaderArchives"]),
     ],
-    targets: [
+    dependencies: libarchivePackages,
+    targets: libarchiveTargets + [
         .target(name: "ChekReaderCore", swiftSettings: swiftSettings),
 
         format("ChekReaderEPUB"),
@@ -52,7 +71,11 @@ let package = Package(
         format("ChekReaderText"),
         format("ChekReaderMOBI"),
         format("ChekReaderFB2"),
-        format("ChekReaderArchives"),
+        .target(
+            name: "ChekReaderArchives",
+            dependencies: ["ChekReaderCore", "ChekReaderComics", libarchive],
+            swiftSettings: swiftSettings
+        ),
 
         .target(
             name: "ChekReaderNavigator",
@@ -102,6 +125,11 @@ let package = Package(
         .testTarget(
             name: "ChekReaderPDFTests",
             dependencies: ["ChekReaderCore", "ChekReaderPDF", "ChekReaderTestSupport"],
+            swiftSettings: swiftSettings
+        ),
+        .testTarget(
+            name: "ChekReaderArchivesTests",
+            dependencies: ["ChekReaderCore", "ChekReaderArchives", "ChekReaderTestSupport", libarchive],
             swiftSettings: swiftSettings
         ),
         .testTarget(

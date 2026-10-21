@@ -6,18 +6,25 @@ import Foundation
 /// Pages are the archive's images in natural order, so `page 2` comes
 /// before `page 10`. `ComicInfo.xml` supplies metadata, the cover and
 /// bookmarks when the archive has one.
-struct ComicParser {
+package struct ComicParser {
     let container: any PublicationContainer
     let format: ReaderFormat
     let limits: ReaderLimits
     /// The file name, for a title when the comic has no metadata.
     let fileName: String?
 
+    package init(container: any PublicationContainer, format: ReaderFormat, limits: ReaderLimits, fileName: String?) {
+        self.container = container
+        self.format = format
+        self.limits = limits
+        self.fileName = fileName
+    }
+
     static let imageExtensions: Set<String> = [
         "jpg", "jpeg", "png", "gif", "webp", "avif", "heic", "heif", "jxl", "bmp", "tif", "tiff",
     ]
 
-    func parse() async throws(ReaderError) -> Publication {
+    package func parse() async throws(ReaderError) -> Publication {
         let paths = container.paths ?? []
         let pages = paths.filter(Self.isPage).sorted { NaturalOrder.precedes($0, $1) }
         guard !pages.isEmpty else {
