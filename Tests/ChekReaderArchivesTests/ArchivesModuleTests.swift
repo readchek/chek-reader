@@ -52,11 +52,13 @@ private let comicInfo = """
         await #expect(throws: ReaderError.self) {
             try await ArchivesModule.open(.data(damaged), format: .cbr, limits: .default)
         }
-        // Cut into the last page, past the end block.
+        // Cut into the last page, past the end block. Depending on the
+        // libarchive version, the cut shows while listing the entries or
+        // only when the page is read; either way it's reported.
         let truncated = data.prefix(data.count - 12)
-        let publication = try await ArchivesModule.open(.data(truncated), format: .cbr, limits: .default)
         await #expect(throws: ReaderError.self) {
-            try await publication.data(at: "02.jpg")
+            let publication = try await ArchivesModule.open(.data(truncated), format: .cbr, limits: .default)
+            _ = try await publication.data(at: "02.jpg")
         }
     }
 }
