@@ -52,6 +52,20 @@ import Testing
         #expect(controller.location?.title == "Chapter One")
     }
 
+    @Test func searchesTheOpenPublication() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let controller = ReaderController()
+        #expect(try await controller.search(for: "Text.").isEmpty)
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        let found = try await controller.search(for: "Text.")
+        #expect(found.map(\.href) == ["OEBPS/Text/chapter 1.xhtml", "OEBPS/Text/chapter2.xhtml"])
+        #expect(found.first?.text?.highlight == "Text.")
+        #expect(await controller.go(to: found[1]))
+        #expect(controller.location?.href == "OEBPS/Text/chapter2.xhtml")
+        await controller.close()
+        #expect(try await controller.search(for: "Text.").isEmpty)
+    }
+
     @Test func opensAtARequestedLocation() async throws {
         ReaderFormats.register(EPUBModule.self)
         let controller = ReaderController()
