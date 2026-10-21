@@ -77,12 +77,12 @@ public struct TableOfContentsView: View {
     /// two entries can point at the same place.
     struct Entry: Identifiable {
         let id: String
-        let link: Link
+        let link: ChekReaderCore.Link
         let title: String
         /// `nil` rather than empty, so the outline shows no disclosure.
         let children: [Entry]?
 
-        init(link: Link, fallback: Int, path: String) {
+        init(link: ChekReaderCore.Link, fallback: Int, path: String) {
             id = path
             self.link = link
             title = link.title?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
