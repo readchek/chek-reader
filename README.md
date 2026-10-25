@@ -14,17 +14,27 @@
   <a href="https://github.com/readchek/chek-reader/issues">Issues</a>
 </p>
 
-> In development. EPUB publications open from files, memory or an HTTP URL in `ReaderView` and turn page by page with taps, swipes, the keyboard or a trackpad. PDFs open the same ways and show in PDFKit's own view, a page at a time. CBZ and CBT comics show a page at a time too, with `ComicInfo.xml` metadata and right-to-left manga. Plain text and Markdown are converted to XHTML and read like EPUB, split into chapters at their headings, and so are FictionBooks, plain or zipped, with their embedded images and notes. DRM-free MOBI and AZW3 books open the same ways, rebuilt into HTML documents. CBR and CB7 open through the optional archives add-on, which links libarchive.
-
-## Overview
-
 Chek Reader is a standalone Swift package for reading on iPhone, iPad and Apple
-Silicon Mac. It opens EPUB, PDF, comics, plain text, Markdown, MOBI, AZW3 and
-FictionBook, from local files offline or streamed from a server.
+Silicon Mac. It powers [Chek 2.0](https://apps.apple.com/us/app/chek-books-comics/id6761271144)
+on the App Store, but has no Chek-specific code, no account and no server of
+its own, so any app can use it.
 
-It powers the [Chek](https://chek.page) app, but has no Chek-specific code, no
-account and no server of its own, so any app can use it. Each format is its own
-product, and apps compile only the formats they include.
+- Opens publications from local files offline, from memory, or streamed from
+  an HTTP server.
+- Turns pages with taps, swipes, the keyboard or a trackpad.
+- Each format is its own product, so apps compile only the formats they include.
+
+## Formats
+
+| Format | How it reads |
+| --- | --- |
+| EPUB 2 and 3 | Reflowable and fixed layout, page by page |
+| PDF | PDFKit's own view, a page at a time |
+| CBZ, CBT | A page at a time, with `ComicInfo.xml` metadata and right-to-left manga |
+| Plain text, Markdown | Converted to XHTML and read like EPUB, split into chapters at their headings |
+| FictionBook | Plain or zipped, with embedded images and notes |
+| MOBI, AZW3 | DRM-free books, rebuilt into HTML documents |
+| CBR, CB7 | Through the optional archives add-on, which links libarchive |
 
 ## Requirements
 
@@ -203,7 +213,14 @@ See [AGENTS.md](AGENTS.md) for the conventions contributors and coding agents fo
 
 ## Dependencies
 
-The core, format and UI products depend only on Apple frameworks and the Swift standard library. The optional `ChekReaderArchives` product links [libarchive](https://github.com/libarchive/libarchive) (BSD-2-Clause): on Apple platforms as a prebuilt static XCFramework from [Lakr233/libarchive.xcframework](https://github.com/Lakr233/libarchive.xcframework) (MIT packaging, with xz, zstd and lz4 under 0BSD and BSD licenses), pinned to one release, and on Linux as the system library from `libarchive-dev`. Register it alongside the defaults to read CBR and CB7:
+The core, format and UI products depend only on Apple frameworks and the Swift standard library.
+
+The optional `ChekReaderArchives` product links [libarchive](https://github.com/libarchive/libarchive) (BSD-2-Clause):
+
+- **On Apple platforms**, as a prebuilt static XCFramework from [Lakr233/libarchive.xcframework](https://github.com/Lakr233/libarchive.xcframework), pinned to one release. Its packaging is MIT, with xz, zstd and lz4 under 0BSD and BSD licenses.
+- **On Linux**, as the system library from `libarchive-dev`.
+
+Register it alongside the defaults to read CBR and CB7:
 
 ```swift
 import ChekReaderArchives
