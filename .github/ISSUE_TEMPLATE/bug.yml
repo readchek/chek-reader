@@ -1,0 +1,54 @@
+name: Report a bug in Chek Reader
+description: The package opens, lays out or pages a publication wrongly in your app.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This list is for developers using the Chek Reader package. If you read with the Chek app, report the problem on [readchek/chek](https://github.com/readchek/chek/issues/new/choose) instead.
+  - type: dropdown
+    id: package
+    attributes:
+      label: Which package?
+      options:
+        - Swift package
+        - Web package (@readchek/reader)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The release tag or commit you depend on.
+    validations:
+      required: true
+  - type: input
+    id: format
+    attributes:
+      label: Format
+      description: For example EPUB 3, PDF, CBZ or AZW3.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: For example iOS 26.1 on iPhone 17, macOS 26, or Safari 26.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you saw, what you expected, and the smallest code that shows it.
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: A file that shows it
+      description: A link to a publication you're allowed to share, or how to make one. Never attach a copyrighted book.
+  - type: textarea
+    id: error
+    attributes:
+      label: Error
+      description: The `ReaderError` or console output, if any.
+      render: text

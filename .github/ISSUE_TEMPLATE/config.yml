@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A problem in the Chek app
+    url: https://github.com/readchek/chek/issues/new/choose
+    about: Problems you hit while reading in Chek go to readchek/chek, so they're all in one list.
