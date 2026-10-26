@@ -42,8 +42,9 @@ export interface ComicEvents {
     error(page: number, error: unknown): void;
 }
 /**
- * A comic's pages in `element`, which should have a size of its own, such
- * as the whole window. Call `destroy` when it goes away.
+ * A comic's pages in `element`, which needs a size of its own, such as the
+ * whole window, and a position other than static, since pages are laid
+ * over it. Call `destroy` when it goes away.
  */
 export declare class ComicView {
     private readonly element;

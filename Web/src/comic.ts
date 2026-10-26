@@ -78,7 +78,7 @@ function addStyles() {
     styled = true;
     const style = document.createElement("style");
     style.textContent = `
-.chek-comic { position: relative; overflow: hidden; outline: none; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+.chek-comic { overflow: hidden; outline: none; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
 .chek-comic[data-flow="scrolled"] { overflow-y: auto; overflow-x: hidden; touch-action: pan-x pan-y pinch-zoom; overscroll-behavior: contain; }
 .chek-comic-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform-origin: 0 0; }
 .chek-comic[data-direction="rtl"] .chek-comic-stage { flex-direction: row-reverse; }
@@ -98,8 +98,9 @@ function addStyles() {
 }
 
 /**
- * A comic's pages in `element`, which should have a size of its own, such
- * as the whole window. Call `destroy` when it goes away.
+ * A comic's pages in `element`, which needs a size of its own, such as the
+ * whole window, and a position other than static, since pages are laid
+ * over it. Call `destroy` when it goes away.
  */
 export class ComicView {
     private options: ComicOptions;

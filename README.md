@@ -186,6 +186,7 @@ Sources/
 Tests/                   Swift Testing suites per target
 Examples/ChekReaderDemo/ Read-only document viewer for iPhone, iPad and Mac
 Scripts/Reader/          TypeScript page layout script, compiled into ChekReaderNavigator
+Web/                     Chek Reader for the web, the @readchek/reader package
 Benchmarks/              Comparison with Readium, PDFKit and other readers (see Benchmarks/README.md)
 .github/workflows/       CI
 ```
@@ -207,6 +208,26 @@ cd Scripts/Reader
 npm ci
 npx playwright install webkit
 npm test                                                    # compiles, then tests in WebKit
+```
+
+## Chek Reader for the web
+
+`@readchek/reader` is the reader for web apps, in `Web/`. It starts with comics: `ComicView` shows a comic's pages in an element you give it, one page or a spread at a time, left to right or right to left, or as one scrolling column for webtoons. It saves positions as the same `Locator` JSON as the Swift package, so a place saved in a browser opens on iPhone. Apps draw their own controls and fetch the pages.
+
+```ts
+import { ComicView } from "@readchek/reader"
+
+const view = new ComicView(element, { count, load: (index, signal) => fetchPage(index, signal) }, {
+	location: (place) => save(place.locator),
+	tap: () => toggleControls(),
+})
+```
+
+It isn't on npm yet. Install it from this repository at a commit or tag, such as `bun add github:readchek/chek-reader#<tag>`. The compiled `Web/dist` is committed for that reason, and CI fails if it differs from `Web/src`. After changing the source:
+
+```sh
+npm ci
+npm test                                                    # compiles Web/src into Web/dist, then tests it
 ```
 
 See [AGENTS.md](AGENTS.md) for the conventions contributors and coding agents follow.

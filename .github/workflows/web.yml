@@ -1,0 +1,39 @@
+name: Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Web/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/web.yml
+  pull_request:
+    paths:
+      - Web/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/web.yml
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: Check the committed build matches its source
+        run: |
+          git diff --exit-code -- Web/dist \
+            || { echo "::error::Web/dist is out of date. Run npm test at the root and commit it."; exit 1; }

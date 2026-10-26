@@ -13,6 +13,7 @@ Treat these as settled. Raise a change with the maintainer instead of working ar
 - **Own engine.** Don't adopt or wrap Readium or another reader. The `Locator` JSON stays Readium-compatible for interoperability.
 - **SwiftPM only.** No CocoaPods or Carthage. Each format is its own product, so apps compile only the formats they include. The `ChekReader` umbrella re-exports the default set.
 - **Platforms.** Build with Xcode 27 and Swift 6.4, and deploy to iOS, iPadOS and macOS 26 or later. Put 27-only APIs behind `@available(anyAppleOS 27, *)` or `if #available`. Mac Catalyst isn't supported, because the SwiftUI `WebPage` APIs are unavailable there.
+- **Web.** The web reader is a TypeScript package in `Web`, with no framework and no dependencies, under the same license. It draws pages into an element and leaves controls, storage and networking to the app. Its locators match the Swift package's.
 - **Rendering.** Reflowable formats render through SwiftUI `WebView` and `WebPage`, with a TypeScript pagination layer. PDF uses PDFKit, and comics use ImageIO with Core Animation.
 - **Formats in 1.0.** EPUB 2 and 3, PDF, CBZ, CBT, TXT, Markdown, DRM-free MOBI and AZW3, and FB2. CBR and CB7 live in the optional `ChekReaderArchives` add-on, which links libarchive.
 - **No DRM.** Don't decrypt DRM. Report `ReaderError.drmProtected`, and let apps decrypt through a `ResourceProvider`.
@@ -33,6 +34,7 @@ Treat these as settled. Raise a change with the maintainer instead of working ar
 | `Tests/` | Swift Testing suites, one target per source target |
 | `Examples/ChekReaderDemo` | Read-only document viewer built on the SwiftUI `Document` protocol |
 | `Scripts/Reader` | TypeScript page layout script. It compiles into `Sources/ChekReaderNavigator/Resources/reader.js`, which is committed; CI fails if the two differ |
+| `Web` | Chek Reader for the web, the `@readchek/reader` TypeScript package, starting with comics. Its `package.json` is at the root so apps can install it from GitHub. `Web/dist` is committed; CI fails if it differs from `Web/src` |
 | `Benchmarks` | Benchmark app and corpus comparing readers in the simulator; links Readium only to measure it. See its README |
 
 ## Build and test
@@ -46,7 +48,7 @@ xcodebuild build -project Examples/ChekReaderDemo/ChekReaderDemo.xcodeproj -sche
   -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO
 ```
 
-After changing `Scripts/Reader`, run `npm ci && npm test` there and commit the rebuilt `reader.js`.
+After changing `Scripts/Reader`, run `npm ci && npm test` there and commit the rebuilt `reader.js`. After changing `Web`, run `npm ci && npm test` at the root and commit the rebuilt `Web/dist`.
 
 CI runs all of these, and also builds and tests the package on Linux. It can run on the maintainers' own Mac and Linux machines, switched by repository variables; see `.github/RUNNERS.md` before changing where a job runs. Keep the core, format and navigator targets free of UIKit, AppKit and SwiftUI so the Linux job keeps passing. Wrap SwiftUI code in `#if canImport(SwiftUI)`.
 
