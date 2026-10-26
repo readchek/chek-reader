@@ -13,12 +13,14 @@ const keepAhead = 8;
 const preloadAhead = 3;
 const scrollKeep = 24;
 let styled = false;
+// Added as a constructed style sheet, which a content security policy
+// without 'unsafe-inline' still allows, where a <style> element isn't.
 function addStyles() {
     if (styled)
         return;
     styled = true;
-    const style = document.createElement("style");
-    style.textContent = `
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(`
 .chek-comic { overflow: hidden; outline: none; touch-action: pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
 .chek-comic[data-flow="scrolled"] { overflow-y: auto; overflow-x: hidden; touch-action: pan-x pan-y pinch-zoom; overscroll-behavior: contain; }
 .chek-comic-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform-origin: 0 0; }
@@ -34,8 +36,8 @@ function addStyles() {
 .chek-comic-strip > div { width: min(100%, var(--chek-comic-strip-width, 800px)); position: relative; }
 .chek-comic-strip > div > img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; }
 .chek-comic-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 500 15px/1.4 system-ui, sans-serif; opacity: 0.6; pointer-events: none; }
-`;
-    document.head.append(style);
+`);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
 }
 /**
  * A comic's pages in `element`, which needs a size of its own, such as the
