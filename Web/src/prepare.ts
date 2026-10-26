@@ -9,7 +9,7 @@
 // publication are dropped, so publication content never makes a network
 // request.
 
-import type { Epub } from "./epub.js";
+import type { Publication } from "./publication.js";
 import { resolveHref, splitFragment } from "./href.js";
 
 /** A resource ready for the frame. */
@@ -41,10 +41,10 @@ const loading: Record<string, string[]> = {
     input: ["src"],
 };
 
-export async function prepare(epub: Epub, path: string): Promise<PreparedResource> {
-    const text = await (await epub.resource(path)).text();
+export async function prepare(book: Publication, path: string): Promise<PreparedResource> {
+    const text = await (await book.resource(path)).text();
     const parser = new DOMParser();
-    let xml = !/\.html?$/i.test(path) && epub.typeOf(path) !== "text/html";
+    let xml = !/\.html?$/i.test(path) && book.typeOf(path) !== "text/html";
     let document = parser.parseFromString(text, xml ? "application/xhtml+xml" : "text/html");
     if (xml && document.getElementsByTagName("parsererror").length > 0) {
         // Many books' XHTML isn't well-formed; browsers read it as HTML.
@@ -55,13 +55,13 @@ export async function prepare(epub: Epub, path: string): Promise<PreparedResourc
     const resources: Record<string, Blob> = {};
     const pending: Promise<void>[] = [];
     const include = (target: string) => {
-        if (target in resources || !epub.has(target)) {
+        if (target in resources || !book.has(target)) {
             return;
         }
         // Claimed now so a resource used twice is read once.
         resources[target] = new Blob();
         pending.push(
-            (epub.typeOf(target) === "text/css" ? styleSheet(epub, target, include) : epub.resource(target))
+            (book.typeOf(target) === "text/css" ? styleSheet(book, target, include) : book.resource(target))
                 .then((blob) => {
                     resources[target] = blob;
                 })
@@ -77,7 +77,7 @@ export async function prepare(epub: Epub, path: string): Promise<PreparedResourc
             return null;
         }
         const [target] = splitFragment(resolved);
-        if (!epub.has(target)) {
+        if (!book.has(target)) {
             return null;
         }
         include(target);
@@ -154,15 +154,15 @@ export async function prepare(epub: Epub, path: string): Promise<PreparedResourc
 }
 
 /** A style sheet with its references rewritten, reading what it refers to through `include`. */
-async function styleSheet(epub: Epub, path: string, include: (path: string) => void): Promise<Blob> {
-    const text = await (await epub.resource(path)).text();
+async function styleSheet(book: Publication, path: string, include: (path: string) => void): Promise<Blob> {
+    const text = await (await book.resource(path)).text();
     const rewritten = rewriteCss(text, (href) => {
         const resolved = resolveHref(href, path);
         if (!resolved) {
             return null;
         }
         const [target] = splitFragment(resolved);
-        if (!epub.has(target)) {
+        if (!book.has(target)) {
             return null;
         }
         include(target);

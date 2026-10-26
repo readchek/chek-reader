@@ -10,7 +10,7 @@
 // a page the app serves from its own origin; see the README's
 // "Books" section for the files and the headers it needs.
 
-import type { Epub, TocItem } from "./epub.js";
+import type { Publication, TocItem } from "./publication.js";
 import { splitFragment } from "./href.js";
 import type { Locator } from "./locator.js";
 import { prepare } from "./prepare.js";
@@ -148,7 +148,7 @@ export class BookView {
 
     constructor(
         private readonly element: HTMLElement,
-        private readonly book: Epub,
+        private readonly book: Publication,
         private readonly events: Partial<BookEvents>,
         private readonly options: BookOptions,
         start: Locator | null,

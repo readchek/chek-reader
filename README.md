@@ -212,7 +212,7 @@ npm test                                                    # compiles, then tes
 
 ## Chek Reader for the web
 
-`@readchek/reader` is the reader for web apps, in `Web/`. It reads comics and EPUB books. `ComicView` shows a comic's pages in an element you give it, one page or a spread at a time, left to right or right to left, or as one scrolling column for webtoons. It saves positions as the same `Locator` JSON as the Swift package, so a place saved in a browser opens on iPhone. Apps draw their own controls and fetch the pages.
+`@readchek/reader` is the reader for web apps, in `Web/`. It reads comics, EPUB books, plain text and Markdown. `ComicView` shows a comic's pages in an element you give it, one page or a spread at a time, left to right or right to left, or as one scrolling column for webtoons. It saves positions as the same `Locator` JSON as the Swift package, so a place saved in a browser opens on iPhone. Apps draw their own controls and fetch the pages.
 
 ```ts
 import { ComicView } from "@readchek/reader"
@@ -237,6 +237,8 @@ const view = new BookView(element, epub, {
 	error: (error) => show(error),
 }, { frameUrl: "/reader-frame/frame.html" }, savedLocator)
 ```
+
+Plain text and Markdown open with `TextBook.plainText(file, fileName)` and `TextBook.markdown(file, fileName)`, which convert them to XHTML chapters exactly as the Swift package does, and read in `BookView` like any EPUB.
 
 Each part of a book opens in an iframe sandboxed with `allow-scripts` only, so it has no access to your app's origin, storage or cookies. Scripts in the book are removed before it opens. The frame's files are in `Web/dist/frame`. Serve them from your app's origin at the `frameUrl` you pass, and give that path its own content security policy, since book styles are inline:
 

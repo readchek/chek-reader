@@ -3,32 +3,8 @@
 // or, for EPUB 2, the NCX. Resources are read from the archive on demand.
 
 import { resolveHref } from "./href.js";
+import type { BookMetadata, Publication, ReadingOrderItem, TocItem } from "./publication.js";
 import { type ZipLimits, ZipArchive } from "./zip.js";
-
-/** A resource in the reading order. */
-export interface ReadingOrderItem {
-    /** The resource's path from the publication's root, as locators name it. */
-    href: string;
-    type: string;
-    /** Whether it's a fixed-layout page, scaled to fit, rather than reflowable text. */
-    fixed: boolean;
-    /** How many positions it holds: one per 1,024 bytes of text, as Readium and the Swift package count. */
-    positions: number;
-}
-
-/** An entry in the table of contents. `href` may carry a fragment. */
-export interface TocItem {
-    title: string;
-    href: string;
-    children: TocItem[];
-}
-
-export interface BookMetadata {
-    title: string;
-    authors: string[];
-    language: string | null;
-    readingProgression: "ltr" | "rtl";
-}
 
 /** The publication is protected by DRM, which the reader doesn't decrypt. */
 export class DrmError extends Error {}
@@ -37,7 +13,7 @@ export class DrmError extends Error {}
 export class EpubError extends Error {}
 
 /** An opened EPUB. */
-export class Epub {
+export class Epub implements Publication {
     private constructor(
         private readonly archive: ZipArchive,
         readonly metadata: BookMetadata,

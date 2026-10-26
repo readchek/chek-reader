@@ -1,4 +1,4 @@
-import type { Epub, TocItem } from "./epub.js";
+import type { Publication, TocItem } from "./publication.js";
 import type { Locator } from "./locator.js";
 /** Reading settings, as the Swift package's ReaderPreferences. */
 export interface BookPreferences {
@@ -61,7 +61,7 @@ export declare class BookView {
     private readonly positionCount;
     private destroyed;
     private lastLocation;
-    constructor(element: HTMLElement, book: Epub, events: Partial<BookEvents>, options: BookOptions, start: Locator | null);
+    constructor(element: HTMLElement, book: Publication, events: Partial<BookEvents>, options: BookOptions, start: Locator | null);
     /** Where the reader is, once the first page is on screen. */
     get location(): BookLocation | undefined;
     next(): Promise<void>;

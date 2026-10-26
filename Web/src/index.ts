@@ -14,7 +14,9 @@ export {
     type ReadingDirection,
     type Spreads,
 } from "./comic.js";
-export { type BookMetadata, DrmError, Epub, EpubError, type ReadingOrderItem, type TocItem } from "./epub.js";
+export type { BookMetadata, Publication, ReadingOrderItem, TocItem } from "./publication.js";
+export { DrmError, Epub, EpubError } from "./epub.js";
+export { TextBook } from "./text.js";
 export {
     type BookEvents,
     type BookLocation,

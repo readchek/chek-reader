@@ -5,5 +5,6 @@ export { comicLocator, comicPageIndex, pageHref } from "./locator.js";
 export { nextScreen, previousScreen, screenPages, screenStart } from "./spreads.js";
 export { ComicView, } from "./comic.js";
 export { DrmError, Epub, EpubError } from "./epub.js";
+export { TextBook } from "./text.js";
 export { BookView, defaultBookPreferences, } from "./book.js";
 export { ZipError } from "./zip.js";

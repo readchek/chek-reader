@@ -34,7 +34,7 @@ Treat these as settled. Raise a change with the maintainer instead of working ar
 | `Tests/` | Swift Testing suites, one target per source target |
 | `Examples/ChekReaderDemo` | Read-only document viewer built on the SwiftUI `Document` protocol |
 | `Scripts/Reader` | TypeScript page layout script. It compiles into `Sources/ChekReaderNavigator/Resources/reader.js`, which is committed; CI fails if the two differ |
-| `Web` | Chek Reader for the web, the `@readchek/reader` TypeScript package for comics and EPUB books. `Web/dist/frame` holds the book frame and a copy of `reader.js`. Its `package.json` is at the root so apps can install it from GitHub. `Web/dist` is committed; CI fails if it differs from `Web/src` |
+| `Web` | Chek Reader for the web, the `@readchek/reader` TypeScript package for comics, EPUB, plain text and Markdown. Its text and Markdown conversion ports `ChekReaderText` and must produce the same bytes, so change both together. `Web/dist/frame` holds the book frame and a copy of `reader.js`. Its `package.json` is at the root so apps can install it from GitHub. `Web/dist` is committed; CI fails if it differs from `Web/src` |
 | `Benchmarks` | Benchmark app and corpus comparing readers in the simulator; links Readium only to measure it. See its README |
 
 ## Build and test

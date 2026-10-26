@@ -1,26 +1,5 @@
+import type { BookMetadata, Publication, ReadingOrderItem, TocItem } from "./publication.js";
 import { type ZipLimits } from "./zip.js";
-/** A resource in the reading order. */
-export interface ReadingOrderItem {
-    /** The resource's path from the publication's root, as locators name it. */
-    href: string;
-    type: string;
-    /** Whether it's a fixed-layout page, scaled to fit, rather than reflowable text. */
-    fixed: boolean;
-    /** How many positions it holds: one per 1,024 bytes of text, as Readium and the Swift package count. */
-    positions: number;
-}
-/** An entry in the table of contents. `href` may carry a fragment. */
-export interface TocItem {
-    title: string;
-    href: string;
-    children: TocItem[];
-}
-export interface BookMetadata {
-    title: string;
-    authors: string[];
-    language: string | null;
-    readingProgression: "ltr" | "rtl";
-}
 /** The publication is protected by DRM, which the reader doesn't decrypt. */
 export declare class DrmError extends Error {
 }
@@ -28,7 +7,7 @@ export declare class DrmError extends Error {
 export declare class EpubError extends Error {
 }
 /** An opened EPUB. */
-export declare class Epub {
+export declare class Epub implements Publication {
     private readonly archive;
     readonly metadata: BookMetadata;
     readonly readingOrder: ReadingOrderItem[];

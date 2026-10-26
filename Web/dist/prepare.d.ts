@@ -1,4 +1,4 @@
-import type { Epub } from "./epub.js";
+import type { Publication } from "./publication.js";
 /** A resource ready for the frame. */
 export interface PreparedResource {
     /** The resource's markup. */
@@ -11,7 +11,7 @@ export interface PreparedResource {
 export declare const scheme = "chek:";
 /** A `chek:` reference to a path, escaped so it ends cleanly in markup and CSS. */
 export declare function chekReference(path: string): string;
-export declare function prepare(epub: Epub, path: string): Promise<PreparedResource>;
+export declare function prepare(book: Publication, path: string): Promise<PreparedResource>;
 /**
  * Rewrites `url()` and `@import` references in CSS with `reference`.
  * References it refuses, such as ones outside the publication, become a
