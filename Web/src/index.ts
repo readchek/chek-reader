@@ -2,7 +2,7 @@
 // for any web app. It draws pages into an element you give it, and leaves
 // controls, storage and networking to the app.
 
-export { type Locator, comicLocator, comicPageIndex, pageHref } from "./locator.js";
+export { type Locator, comicLocator, comicPageIndex, pageHref, pdfHref, pdfLocator, pdfPageIndex } from "./locator.js";
 export { nextScreen, previousScreen, screenPages, screenStart } from "./spreads.js";
 export {
     type ComicEvents,

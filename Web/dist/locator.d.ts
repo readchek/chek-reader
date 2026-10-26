@@ -35,3 +35,9 @@ export declare function comicLocator(index: number, count: number, type?: string
  * older readers still open near where they were.
  */
 export declare function comicPageIndex(locator: Locator | null | undefined, count: number): number | undefined;
+/** The href of a PDF's one resource, as the Swift package's `PDFModule.href`. */
+export declare const pdfHref = "publication.pdf";
+/** The locator of a PDF's page, from 0, as the Swift package's PDF navigator reports it. */
+export declare function pdfLocator(index: number, count: number, title?: string): Locator;
+/** The page from 0 a PDF locator points at: its `page=N` fragment, else its position, else its progression. */
+export declare function pdfPageIndex(locator: Locator | null | undefined, count: number): number | undefined;

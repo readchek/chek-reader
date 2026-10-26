@@ -68,7 +68,11 @@ export class ComicView {
         this.events = events;
         addStyles();
         this.options = { ...defaults, ...options };
-        const index = typeof start === "number" ? start : comicPageIndex(start, source.count);
+        const index = typeof start === "number"
+            ? start
+            : start && source.pageIndex
+                ? source.pageIndex(start)
+                : comicPageIndex(start, source.count);
         this.start = Math.min(Math.max(index ?? 0, 0), Math.max(source.count - 1, 0));
         element.classList.add("chek-comic");
         element.tabIndex = element.tabIndex >= 0 ? element.tabIndex : 0;
@@ -137,7 +141,8 @@ export class ComicView {
     }
     /** The position of the first page on screen. */
     locator() {
-        return comicLocator(this.start, this.source.count, this.loaded.get(this.start)?.type);
+        return (this.source.locator?.(this.start)
+            ?? comicLocator(this.start, this.source.count, this.loaded.get(this.start)?.type));
     }
     destroy() {
         this.controller.abort();

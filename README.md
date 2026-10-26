@@ -212,7 +212,7 @@ npm test                                                    # compiles, then tes
 
 ## Chek Reader for the web
 
-`@readchek/reader` is the reader for web apps, in `Web/`. It reads comics, EPUB books, plain text and Markdown. `ComicView` shows a comic's pages in an element you give it, one page or a spread at a time, left to right or right to left, or as one scrolling column for webtoons. It saves positions as the same `Locator` JSON as the Swift package, so a place saved in a browser opens on iPhone. Apps draw their own controls and fetch the pages.
+`@readchek/reader` is the reader for web apps, in `Web/`. It reads comics, EPUB books, plain text, Markdown and PDF. `ComicView` shows a comic's pages in an element you give it, one page or a spread at a time, left to right or right to left, or as one scrolling column for webtoons. It saves positions as the same `Locator` JSON as the Swift package, so a place saved in a browser opens on iPhone. Apps draw their own controls and fetch the pages.
 
 ```ts
 import { ComicView } from "@readchek/reader"
@@ -240,6 +240,14 @@ const view = new BookView(element, epub, {
 
 Plain text and Markdown open with `TextBook.plainText(file, fileName)` and `TextBook.markdown(file, fileName)`, which convert them to XHTML chapters exactly as the Swift package does, and read in `BookView` like any EPUB.
 
+PDFs open from a separate entry, `@readchek/reader/pdf`, which uses [pdf.js](https://github.com/mozilla/pdf.js) (Apache-2.0). Install `pdfjs-dist` at the version in this package's `peerDependencies` to use it. Apps that never import it don't need pdf.js. `PdfDocument` draws each page with pdf.js and reads in `ComicView`, with the Swift package's PDF locators. Serve pdf.js's worker from your app's origin, and its `cmaps` and `standard_fonts` folders for PDFs that don't embed their fonts:
+
+```ts
+const { PdfDocument } = await import("@readchek/reader/pdf")
+const pdf = await PdfDocument.open(file, { worker: "/pdfjs/pdf.worker.min.mjs", cMaps: "/pdfjs/cmaps/", standardFonts: "/pdfjs/standard_fonts/" })
+const view = new ComicView(element, pdf, events, { flow: "paged" }, savedLocator)
+```
+
 Each part of a book opens in an iframe sandboxed with `allow-scripts` only, so it has no access to your app's origin, storage or cookies. Scripts in the book are removed before it opens. The frame's files are in `Web/dist/frame`. Serve them from your app's origin at the `frameUrl` you pass, and give that path its own content security policy, since book styles are inline:
 
 ```
@@ -265,6 +273,8 @@ The optional `ChekReaderArchives` product links [libarchive](https://github.com/
 
 - **On Apple platforms**, as a prebuilt static XCFramework from [Lakr233/libarchive.xcframework](https://github.com/Lakr233/libarchive.xcframework), pinned to one release. Its packaging is MIT, with xz, zstd and lz4 under 0BSD and BSD licenses.
 - **On Linux**, as the system library from `libarchive-dev`.
+
+The web package's optional `@readchek/reader/pdf` entry uses [pdf.js](https://github.com/mozilla/pdf.js) (`pdfjs-dist`, Apache-2.0), an optional peer dependency pinned to one release. The rest of the web package has no dependencies.
 
 Register it alongside the defaults to read CBR and CB7:
 

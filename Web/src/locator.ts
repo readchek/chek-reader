@@ -59,3 +59,40 @@ export function comicPageIndex(locator: Locator | null | undefined, count: numbe
     if (total !== undefined && total >= 0 && total <= 1) return clamp(Math.floor(total * count));
     return undefined;
 }
+
+/** The href of a PDF's one resource, as the Swift package's `PDFModule.href`. */
+export const pdfHref = "publication.pdf";
+
+/** The locator of a PDF's page, from 0, as the Swift package's PDF navigator reports it. */
+export function pdfLocator(index: number, count: number, title?: string): Locator {
+    const progression = count > 0 ? index / count : 0;
+    return {
+        href: pdfHref,
+        type: "application/pdf",
+        ...(title ? { title } : {}),
+        locations: {
+            fragments: [`page=${index + 1}`],
+            progression,
+            position: index + 1,
+            totalProgression: progression,
+        },
+    };
+}
+
+/** The page from 0 a PDF locator points at: its `page=N` fragment, else its position, else its progression. */
+export function pdfPageIndex(locator: Locator | null | undefined, count: number): number | undefined {
+    if (!locator || count <= 0) return undefined;
+    const clamp = (index: number) => Math.min(Math.max(index, 0), count - 1);
+    const fragments = [...(locator.locations?.fragments ?? []), locator.href.split("#")[1] ?? ""];
+    for (const fragment of fragments) {
+        for (const parameter of fragment.split("&")) {
+            const match = /^page=(\d+)$/.exec(parameter);
+            if (match) return clamp(Number(match[1]) - 1);
+        }
+    }
+    const position = locator.locations?.position;
+    if (position !== undefined && Number.isInteger(position) && position >= 1) return clamp(position - 1);
+    const progression = locator.locations?.totalProgression ?? locator.locations?.progression;
+    if (progression !== undefined && progression >= 0 && progression <= 1) return clamp(Math.floor(progression * count));
+    return undefined;
+}
