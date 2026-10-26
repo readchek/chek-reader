@@ -212,7 +212,7 @@ npm test                                                    # compiles, then tes
 
 ## Chek Reader for the web
 
-`@readchek/reader` is the reader for web apps, in `Web/`. It starts with comics: `ComicView` shows a comic's pages in an element you give it, one page or a spread at a time, left to right or right to left, or as one scrolling column for webtoons. It saves positions as the same `Locator` JSON as the Swift package, so a place saved in a browser opens on iPhone. Apps draw their own controls and fetch the pages.
+`@readchek/reader` is the reader for web apps, in `Web/`. It reads comics and EPUB books. `ComicView` shows a comic's pages in an element you give it, one page or a spread at a time, left to right or right to left, or as one scrolling column for webtoons. It saves positions as the same `Locator` JSON as the Swift package, so a place saved in a browser opens on iPhone. Apps draw their own controls and fetch the pages.
 
 ```ts
 import { ComicView } from "@readchek/reader"
@@ -222,6 +222,29 @@ const view = new ComicView(element, { count, load: (index, signal) => fetchPage(
 	tap: () => toggleControls(),
 })
 ```
+
+Books open with `Epub` and `BookView`. `Epub.open(file)` reads an EPUB from a `Blob`, with its contents, reading order and metadata, and throws `DrmError` for encrypted books. `BookView` pages it in an element you give it, using the same `reader.js` layout script as the Swift package, so pages, themes and locators match the iPhone app.
+
+```ts
+import { BookView, Epub } from "@readchek/reader"
+
+const epub = await Epub.open(await response.blob())
+const view = new BookView(element, epub, {
+	location: (place) => save(place.locator),
+	tap: () => toggleControls(),
+	end: () => showUpNext(),
+	externalLink: (url) => open(url, "_blank", "noopener"),
+	error: (error) => show(error),
+}, { frameUrl: "/reader-frame/frame.html" }, savedLocator)
+```
+
+Each part of a book opens in an iframe sandboxed with `allow-scripts` only, so it has no access to your app's origin, storage or cookies. Scripts in the book are removed before it opens. The frame's files are in `Web/dist/frame`. Serve them from your app's origin at the `frameUrl` you pass, and give that path its own content security policy, since book styles are inline:
+
+```
+default-src 'none'; script-src 'self'; style-src 'unsafe-inline' blob:; img-src blob: data:; font-src blob: data:; media-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+```
+
+Position the element you pass to `ComicView` or `BookView` and give it a size. The views fill it.
 
 It isn't on npm yet. Install it from this repository at a commit or tag, such as `bun add github:readchek/chek-reader#<tag>`. The compiled `Web/dist` is committed for that reason, and CI fails if it differs from `Web/src`. After changing the source:
 

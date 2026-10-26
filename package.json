@@ -4,18 +4,24 @@
   "description": "Chek Reader for the web: the reading engine of the Swift package, for any web app.",
   "license": "Apache-2.0",
   "type": "module",
-  "repository": { "type": "git", "url": "git+https://github.com/readchek/chek-reader.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/readchek/chek-reader.git"
+  },
   "exports": {
     ".": {
       "types": "./Web/dist/index.d.ts",
       "import": "./Web/dist/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
-  "files": ["Web/dist"],
+  "files": [
+    "Web/dist"
+  ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsc -p Web",
-    "test": "tsc -p Web && node --test Web/test/*.test.mjs"
+    "build": "tsc -p Web && node Web/scripts/frame.mjs",
+    "test": "npm run build && node --test Web/test/*.test.mjs"
   },
   "devDependencies": {
     "typescript": "6.0.2"
