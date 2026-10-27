@@ -106,6 +106,17 @@
         }
         return await method(...request.args);
     }
+    // Keys pressed on the page stay in this frame, so the app's document
+    // never sees them. The ones reader.js didn't use, such as Escape, go to
+    // the reader for the app. A listener on the window runs after reader.js's
+    // own on the document, so it can tell.
+    window.addEventListener("keydown", (event) => {
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey
+            || (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable]"))) {
+            return;
+        }
+        send({ type: "key", key: event.key });
+    });
     window.addEventListener("message", (event) => {
         if (event.source !== parent) {
             return;

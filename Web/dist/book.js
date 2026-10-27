@@ -365,6 +365,13 @@ export class BookView {
                     }
                 }
                 break;
+            case "key":
+                // Focus can stay in a frame the reader has since hidden, and
+                // the key is still the reader's.
+                if (typeof data.key === "string") {
+                    this.events.key?.(data.key);
+                }
+                break;
             case "event":
                 this.input(slot, data.message);
                 break;

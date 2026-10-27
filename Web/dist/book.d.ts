@@ -39,6 +39,13 @@ export interface BookEvents {
     end(): void;
     /** A link out of the book, to open elsewhere. */
     externalLink(url: string): void;
+    /**
+     * A key pressed on the book's page that the reader doesn't use, such as
+     * Escape, named as `KeyboardEvent.key` names it. The page is in a frame
+     * of its own, so the app's document doesn't see these keys while the
+     * page has focus. Keys pressed elsewhere reach the app as usual.
+     */
+    key(key: string): void;
     error(error: unknown): void;
 }
 export interface BookOptions {

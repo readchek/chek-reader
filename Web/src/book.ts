@@ -63,6 +63,13 @@ export interface BookEvents {
     end(): void;
     /** A link out of the book, to open elsewhere. */
     externalLink(url: string): void;
+    /**
+     * A key pressed on the book's page that the reader doesn't use, such as
+     * Escape, named as `KeyboardEvent.key` names it. The page is in a frame
+     * of its own, so the app's document doesn't see these keys while the
+     * page has focus. Keys pressed elsewhere reach the app as usual.
+     */
+    key(key: string): void;
     error(error: unknown): void;
 }
 
@@ -83,6 +90,7 @@ type FrameMessage =
     | { type: "ready" }
     | { type: "reply"; id: number; result?: unknown; error?: string }
     | { type: "link"; href: string; external: boolean }
+    | { type: "key"; key: string }
     | { type: "event"; message: { type: string; zone?: string; direction?: string; key?: string } & Partial<PageState> };
 
 class Slot {
@@ -451,6 +459,13 @@ export class BookView {
                     } else {
                         void this.goToHref(data.href);
                     }
+                }
+                break;
+            case "key":
+                // Focus can stay in a frame the reader has since hidden, and
+                // the key is still the reader's.
+                if (typeof data.key === "string") {
+                    this.events.key?.(data.key);
                 }
                 break;
             case "event":
