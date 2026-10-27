@@ -365,6 +365,11 @@ export class BookView {
                     }
                 }
                 break;
+            case "key":
+                if (slot === this.current && typeof data.key === "string") {
+                    this.events.key?.(data.key);
+                }
+                break;
             case "event":
                 this.input(slot, data.message);
                 break;

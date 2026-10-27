@@ -238,6 +238,8 @@ const view = new BookView(element, epub, {
 }, { frameUrl: "/reader-frame/frame.html" }, savedLocator)
 ```
 
+Each page is in a sandboxed frame, so while it has focus the app's document doesn't see key presses. `BookView` passes the keys it doesn't use, such as Escape, to the `key` event.
+
 Plain text and Markdown open with `TextBook.plainText(file, fileName)` and `TextBook.markdown(file, fileName)`, which convert them to XHTML chapters exactly as the Swift package does, and read in `BookView` like any EPUB.
 
 PDFs open from a separate entry, `@readchek/reader/pdf`, which uses [pdf.js](https://github.com/mozilla/pdf.js) (Apache-2.0). Install `pdfjs-dist` at the version in this package's `peerDependencies` to use it. Apps that never import it don't need pdf.js. `PdfDocument` draws each page with pdf.js and reads in `ComicView`, with the Swift package's PDF locators. Serve pdf.js's worker from your app's origin, and its `cmaps` and `standard_fonts` folders for PDFs that don't embed their fonts:
