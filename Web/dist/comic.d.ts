@@ -82,6 +82,12 @@ export declare class ComicView {
     next(): boolean;
     /** Shows the previous page or spread. Returns false at the start. */
     previous(): boolean;
+    /**
+     * Zooms in or out by `factor` around the middle of the view, such as
+     * for a zoom key. Only paged comics zoom; reaching 1 shows the whole
+     * page again.
+     */
+    zoomBy(factor: number): void;
     /** The position of the first page on screen. */
     locator(): Locator;
     destroy(): void;

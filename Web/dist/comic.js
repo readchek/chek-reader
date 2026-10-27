@@ -139,6 +139,16 @@ export class ComicView {
         this.show(previous, -1);
         return true;
     }
+    /**
+     * Zooms in or out by `factor` around the middle of the view, such as
+     * for a zoom key. Only paged comics zoom; reaching 1 shows the whole
+     * page again.
+     */
+    zoomBy(factor) {
+        if (this.flow !== "paged" || !this.stage)
+            return;
+        this.zoomTo(this.zoom.scale * factor, this.element.clientWidth / 2, this.element.clientHeight / 2);
+    }
     /** The position of the first page on screen. */
     locator() {
         return (this.source.locator?.(this.start)
