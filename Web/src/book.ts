@@ -226,7 +226,12 @@ export class BookView {
         this.preferences = { ...this.preferences, ...preferences };
         this.generation += 1;
         return this.enqueue(async () => {
-            for (const slot of this.slots) {
+            // The page on screen first, and reported before the others:
+            // a hidden frame can take seconds to lay a long chapter out
+            // again, and the page count would show the old size until then.
+            const current = this.current;
+            const order = current ? [current, ...this.slots.filter((slot) => slot !== current)] : this.slots;
+            for (const slot of order) {
                 if (!slot.state) {
                     continue;
                 }
@@ -234,9 +239,9 @@ export class BookView {
                 if (state) {
                     slot.state = state;
                 }
-            }
-            if (this.current?.state) {
-                await this.report(this.current);
+                if (slot === current) {
+                    await this.report(slot);
+                }
             }
         });
     }
