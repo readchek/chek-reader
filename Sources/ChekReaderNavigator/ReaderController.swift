@@ -37,6 +37,11 @@ public final class ReaderController {
     /// Counts taps in the middle of the page, where a tap doesn't turn it.
     /// Apps watch it to show and hide their own controls.
     public private(set) var middleTapCount = 0
+    /// Counts page turns asked for past the last page, by a tap, swipe,
+    /// key or pulling a scrolled comic up past its end. Apps watch it to
+    /// go on to whatever comes next, such as a series' next chapter, so
+    /// reading on never needs a button.
+    public private(set) var turnsPastEnd = 0
 
     /// The limits applied to every publication this controller opens.
     public let limits: ReaderLimits
@@ -269,6 +274,12 @@ public final class ReaderController {
     func navigatorDidTapMiddle(session: Int) {
         guard session == self.session, state == .ready else { return }
         middleTapCount += 1
+    }
+
+    /// Records a turn asked for past the last page, unless its session is stale.
+    func navigatorDidTurnPastEnd(session: Int) {
+        guard session == self.session, state == .ready else { return }
+        turnsPastEnd += 1
     }
 
     private func fail(_ error: ReaderError) throws(ReaderError) {

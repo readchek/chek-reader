@@ -171,4 +171,20 @@ import Testing
         controller.navigatorDidTapMiddle(session: first)
         #expect(controller.middleTapCount == 1)
     }
+
+    @Test func countsTurnsPastTheEndOnlyForTheCurrentSession() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let controller = ReaderController()
+        controller.navigatorDidTurnPastEnd(session: controller.session)
+        #expect(controller.turnsPastEnd == 0)
+
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        let first = controller.session
+        controller.navigatorDidTurnPastEnd(session: first)
+        #expect(controller.turnsPastEnd == 1)
+
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        controller.navigatorDidTurnPastEnd(session: first)
+        #expect(controller.turnsPastEnd == 1)
+    }
 }

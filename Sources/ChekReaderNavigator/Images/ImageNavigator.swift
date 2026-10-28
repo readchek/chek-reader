@@ -127,12 +127,26 @@ final class ImageNavigator: ReaderNavigator {
         }
         Task {
             switch command {
-            case .forward: _ = await goForward()
+            case .forward:
+                if await !goForward(), isAtLastPage {
+                    didTurnPastEnd()
+                }
             case .backward: _ = await goBackward()
             case .firstPage: _ = await show(0)
             case .lastPage: _ = await show(publication.readingOrder.count - 1)
             }
         }
+    }
+
+    /// Whether the last page is the one on screen.
+    var isAtLastPage: Bool {
+        index == pageCount - 1
+    }
+
+    /// Records a turn asked for past the last page, such as a swipe the
+    /// pager had no page for.
+    func didTurnPastEnd() {
+        controller?.navigatorDidTurnPastEnd(session: session)
     }
 
     private func turn(by offset: Int) async -> Bool {
