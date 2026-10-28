@@ -246,7 +246,7 @@ const view = new BookView(element, epub, {
 }, { frameUrl: "/reader-frame/frame.html" }, savedLocator)
 ```
 
-Each page is in a sandboxed frame, so while it has focus the app's document doesn't see key presses. `BookView` passes the keys it doesn't use, such as Escape, to the `key` event.
+Each page is in a sandboxed frame, so while it has focus the app's document doesn't see key presses or mouse moves. `BookView` passes the keys it doesn't use, such as Escape, to the `key` event, and reports mouse moves over the page to the `pointer` event, for apps that show their controls on hover. `chapterAt(progression)` names the chapter at a point through the book, such as under a slider's thumb.
 
 Plain text and Markdown open with `TextBook.plainText(file, fileName)` and `TextBook.markdown(file, fileName)`, which convert them to XHTML chapters exactly as the Swift package does, and read in `BookView` like any EPUB.
 

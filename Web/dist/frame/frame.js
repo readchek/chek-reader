@@ -117,6 +117,18 @@
         }
         send({ type: "key", key: event.key });
     });
+    // The app can't see the mouse over this frame, and shows its controls
+    // when it moves. Touches leave them to taps, and a frame shown under a
+    // mouse that's resting gets a move that didn't go anywhere.
+    let lastPointer = 0;
+    window.addEventListener("pointermove", (event) => {
+        if (event.pointerType !== "mouse" || (event.movementX === 0 && event.movementY === 0)
+            || event.timeStamp - lastPointer < 100) {
+            return;
+        }
+        lastPointer = event.timeStamp;
+        send({ type: "pointer" });
+    });
     window.addEventListener("message", (event) => {
         if (event.source !== parent) {
             return;

@@ -563,6 +563,8 @@ export class ComicView {
                 if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
                 const target = event.target as HTMLElement | null;
                 if (target?.closest("input, textarea, select, [contenteditable], [role=dialog], [role=slider]")) return;
+                // Space presses a focused button, such as an app's page turn button.
+                if (event.key === " " && target?.closest("button, a")) return;
                 const rtl = this.options.direction === "rtl";
                 const scrolled = this.flow === "scrolled";
                 let handled = true;
