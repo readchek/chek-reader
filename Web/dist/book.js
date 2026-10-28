@@ -128,6 +128,11 @@ export class BookView {
             await this.show(slot, state);
         });
     }
+    /** The table of contents entry at a point through the whole book, from 0 to 1, such as for a slider's label. */
+    chapterAt(total) {
+        const href = this.book.readingOrder[this.resourceAt(total).index]?.href;
+        return href === undefined ? undefined : this.chapterOf(href);
+    }
     /** Goes to a point through the whole book, from 0 to 1. */
     goToProgression(total) {
         return this.enqueue(async () => {
@@ -242,6 +247,11 @@ export class BookView {
     async show(slot, state) {
         slot.state = state;
         if (this.current !== slot) {
+            // Keys go to the focused frame, and one that's hidden would keep
+            // them from the page on screen.
+            if (this.current && document.activeElement === this.current.frame) {
+                this.element.focus({ preventScroll: true });
+            }
             this.current?.frame.removeAttribute("data-current");
             slot.frame.setAttribute("data-current", "");
             this.current = slot;
@@ -377,6 +387,11 @@ export class BookView {
                     this.events.key?.(data.key);
                 }
                 break;
+            case "pointer":
+                if (slot === this.current) {
+                    this.events.pointer?.();
+                }
+                break;
             case "event":
                 this.input(slot, data.message);
                 break;
@@ -394,7 +409,10 @@ export class BookView {
             }
             return;
         }
-        if (slot !== this.current) {
+        // Keys and the wheel turn the page on screen wherever they come
+        // from: focus can stay in a frame the reader has since hidden.
+        // Taps and swipes only come from the page on screen.
+        if (slot !== this.current && message.type !== "key" && message.type !== "wheel") {
             return;
         }
         const rtl = this.book.metadata.readingProgression === "rtl";

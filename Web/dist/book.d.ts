@@ -35,6 +35,12 @@ export interface BookEvents {
     location(location: BookLocation): void;
     /** A tap in the middle of the page, for showing controls. */
     tap(): void;
+    /**
+     * The mouse moved over the book's page, for showing controls on hover.
+     * The page is in a frame of its own, so the app's document doesn't see
+     * these moves. Touches don't count. Sent at most every 100 ms.
+     */
+    pointer(): void;
     /** A turn past the last page. */
     end(): void;
     /** A link out of the book, to open elsewhere. */
@@ -77,6 +83,8 @@ export declare class BookView {
     goTo(locator: Locator): Promise<void>;
     /** Goes to an href in the book, such as a table of contents entry's. */
     goToHref(href: string): Promise<void>;
+    /** The table of contents entry at a point through the whole book, from 0 to 1, such as for a slider's label. */
+    chapterAt(total: number): TocItem | undefined;
     /** Goes to a point through the whole book, from 0 to 1. */
     goToProgression(total: number): Promise<void>;
     setPreferences(preferences: Partial<BookPreferences>): Promise<void>;
