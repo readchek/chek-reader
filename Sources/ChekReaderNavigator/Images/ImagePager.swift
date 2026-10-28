@@ -21,6 +21,8 @@ struct ImagePagerView: UIViewControllerRepresentable {
 final class ImagePagerController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate, ImagePaging {
     private let navigator: ImageNavigator
     private let isCurl: Bool
+    /// Kept, since a gesture recognizer doesn't keep its target.
+    private var pastEndSwipe: PastEndSwipe?
 
     init(navigator: ImageNavigator) {
         self.navigator = navigator
@@ -55,6 +57,13 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         }
         setViewControllers(pages(for: navigator.index ?? 0), direction: .forward, animated: false)
         navigator.pager = self
+        pastEndSwipe = PastEndSwipe(in: view, isRightToLeft: navigator.isRightToLeft) { [weak self] in
+            // A zoomed page pans to look around it, which isn't a turn.
+            guard let self, let page = viewControllers?.first as? ImagePageController, !page.isZoomed else { return false }
+            return startAfter(page.index) == nil
+        } didSwipe: { [weak self] in
+            self?.navigator.didTurnPastEnd()
+        }
     }
 
     fileprivate var navigatorForPages: ImageNavigator { navigator }
@@ -379,6 +388,10 @@ private final class ImagePageController: UIViewController, UIScrollViewDelegate 
         let scale: CGFloat = 2.5
         let size = CGSize(width: scrollView.bounds.width / scale, height: scrollView.bounds.height / scale)
         scrollView.zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2, width: size.width, height: size.height), animated: true)
+    }
+
+    var isZoomed: Bool {
+        scrollView.zoomScale > 1.01
     }
 
     @objc private func tapped(_ recognizer: UITapGestureRecognizer) {

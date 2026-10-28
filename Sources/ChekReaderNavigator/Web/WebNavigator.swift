@@ -541,7 +541,25 @@ final class WebNavigator: ReaderNavigator {
             }
             return
         }
-        Task { _ = await perform(command) }
+        Task {
+            let wasAtEnd = isAtEnd
+            if await !perform(command), command == .forward, wasAtEnd {
+                controller?.navigatorDidTurnPastEnd(session: session)
+            }
+        }
+    }
+
+    /// Whether the last page of the last resource is on screen, so a turn
+    /// forward has nowhere to go.
+    var isAtEnd: Bool {
+        guard let slot = currentSlot, let state = slot.state else { return false }
+        return slot.resource == publication.readingOrder.count - 1 && state.page >= state.pageCount - 1
+    }
+
+    /// Records a turn asked for past the last page, such as a swipe the
+    /// pager had no page for.
+    func didTurnPastEnd() {
+        controller?.navigatorDidTurnPastEnd(session: session)
     }
 
     private static func input(type: String, message: [String: Any]) -> PageCommand.Input? {

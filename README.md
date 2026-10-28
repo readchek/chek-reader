@@ -164,6 +164,14 @@ await controller.goForward()
 await controller.setPreferences(ReaderPreferences(fontScale: 1.5, theme: .dark))
 ```
 
+To go on to a series' next chapter when the reader turns past the last page, watch `turnsPastEnd`. It counts taps, keys and swipes toward a next page that isn't there, and pulls past the end of a scrolled comic. PDF doesn't report them yet:
+
+```swift
+.onChange(of: controller.turnsPastEnd) {
+    openNextChapter()
+}
+```
+
 Searching reads every chapter, so run it off the critical path. Each result is a `Locator` with the matched text and the words around it, in reading order, that `go(to:)` opens at the page holding the match. PDF searches through PDFKit, and comics find nothing:
 
 ```swift

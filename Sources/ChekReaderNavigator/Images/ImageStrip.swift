@@ -149,6 +149,15 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         navigator.didShow(index)
     }
 
+    /// Pulling the strip up past its end, as at the bottom of a webtoon
+    /// episode, asks to go on to what comes next.
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        let end = max(scrollView.contentSize.height, scrollView.bounds.height)
+        if scrollView.contentOffset.y + scrollView.bounds.height - end > 80 {
+            navigator.didTurnPastEnd()
+        }
+    }
+
     /// A tap in the middle shows the controls; one near the top or bottom
     /// scrolls back or on by most of a screen.
     @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
@@ -163,6 +172,10 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         let distance = collectionView.bounds.height * 0.85 * (forward ? 1 : -1)
         let maxOffset = max(collectionView.contentSize.height - collectionView.bounds.height, 0)
         let target = min(max(collectionView.contentOffset.y + distance, 0), maxOffset)
+        if forward, collectionView.contentOffset.y >= maxOffset - 1 {
+            navigator.didTurnPastEnd()
+            return
+        }
         isAnimatingTap = true
         UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseInOut, .allowUserInteraction]) {
             self.collectionView.contentOffset.y = target

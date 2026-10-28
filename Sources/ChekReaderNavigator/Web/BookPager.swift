@@ -71,6 +71,8 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
     let live: UIHostingController<Content>
     private lazy var liveController = LivePageController(hosting: live)
     private let isCurl: Bool
+    /// Kept, since a gesture recognizer doesn't keep its target.
+    private var pastEndSwipe: PastEndSwipe?
     /// The turn waiting for the web content to catch up, so a new one
     /// doesn't start from a stale page.
     private var settling: Task<Void, Never>?
@@ -108,6 +110,11 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         }
         setViewControllers(pages(for: liveController), direction: .forward, animated: false)
         navigator.pager = self
+        pastEndSwipe = PastEndSwipe(in: view, isRightToLeft: navigator.isRightToLeft) { [weak self] in
+            self?.navigator.isAtEnd ?? false
+        } didSwipe: { [weak self] in
+            self?.navigator.didTurnPastEnd()
+        }
     }
 
     /// The pages to set for `front`. A double-sided curl takes the front
