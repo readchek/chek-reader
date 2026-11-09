@@ -1,3 +1,4 @@
+import type { Edge } from "./flow.js";
 import type { Publication, TocItem } from "./publication.js";
 import type { Locator } from "./locator.js";
 /** Reading settings, as the Swift package's ReaderPreferences. */
@@ -29,6 +30,8 @@ export interface BookLocation {
     chapter: TocItem | undefined;
     atStart: boolean;
     atEnd: boolean;
+    /** The end that's on screen in place of the page, when the reader has turned onto one. */
+    edge: Edge | null;
 }
 export interface BookEvents {
     /** The reader moved, or the page changed under it. */
@@ -41,8 +44,14 @@ export interface BookEvents {
      * these moves. Touches don't count. Sent at most every 100 ms.
      */
     pointer(): void;
-    /** A turn past the last page. */
+    /** A turn past the last page when nothing is given to show after it. */
     end(): void;
+    /**
+     * Reading on past what's after the last page, or back past what's
+     * before the first, which apps use to open the next or previous book
+     * or chapter. Only an end that was given can be left through.
+     */
+    leave(toward: Edge): void;
     /** A link out of the book, to open elsewhere. */
     externalLink(url: string): void;
     /**
@@ -58,6 +67,16 @@ export interface BookOptions {
     /** The address of the reader's frame page, served by the app. */
     frameUrl: string;
     preferences: BookPreferences;
+    /**
+     * What shows one turn before the first page and one turn after the
+     * last, such as what joins one chapter to the next. The view places
+     * the elements over the page and the app draws what's in them, as
+     * `ComicView` does with its `ends`.
+     */
+    ends?: {
+        before?: HTMLElement;
+        after?: HTMLElement;
+    };
 }
 export declare class BookView {
     private readonly element;
@@ -74,6 +93,11 @@ export declare class BookView {
     private readonly positionCount;
     private destroyed;
     private lastLocation;
+    /** The end the reader has turned onto, shown over the page it came from. */
+    private edge;
+    private readonly ends;
+    private lastLeft;
+    private lastWheel;
     constructor(element: HTMLElement, book: Publication, events: Partial<BookEvents>, options: BookOptions, start: Locator | null);
     /** Where the reader is, once the first page is on screen. */
     get location(): BookLocation | undefined;
@@ -91,6 +115,14 @@ export declare class BookView {
     destroy(): void;
     private enqueue;
     private open;
+    /**
+     * An end's element, which sits over the page and so takes the taps,
+     * swipes and wheel the page's own frame would have.
+     */
+    private edgeHolder;
+    /** Shows an end over the page, or takes it away, and says so. */
+    private setEdge;
+    private leave;
     private turn;
     /** The resource and progression within it at a point through the whole book. */
     private resourceAt;

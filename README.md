@@ -164,11 +164,14 @@ await controller.goForward()
 await controller.setPreferences(ReaderPreferences(fontScale: 1.5, theme: .dark))
 ```
 
-To go on to a series' next chapter when the reader turns past the last page, watch `turnsPastEnd`. It counts taps, keys and swipes toward a next page that isn't there, and pulls past the end of a scrolled comic. PDF doesn't report them yet:
+To go on to a series' next chapter when the reader turns past the last page, watch `turnsPastEnd`. It counts taps, keys and swipes toward a next page that isn't there, and pulls past the end of a scrolled comic. `turnsPastStart` counts the same back past the first page. Open the chapter before with `fromEnd: true`, so reading back arrives at its last page. PDF doesn't report either yet:
 
 ```swift
 .onChange(of: controller.turnsPastEnd) {
     openNextChapter()
+}
+.onChange(of: controller.turnsPastStart) {
+    Task { try await controller.open(previousChapter, fromEnd: true) }
 }
 ```
 
@@ -247,6 +250,18 @@ const view = new BookView(element, epub, {
 ```
 
 Each page is in a sandboxed frame, so while it has focus the app's document doesn't see key presses or mouse moves. `BookView` passes the keys it doesn't use, such as Escape, to the `key` event, and reports mouse moves over the page to the `pointer` event, for apps that show their controls on hover. `chapterAt(progression)` names the chapter at a point through the book, such as under a slider's thumb.
+
+To read on from one chapter or book into the next, give either view an element for each end. `ComicView` takes `{ before, after }` as its last argument, and `BookView` takes them as the `ends` option. The view places `after` one turn past the last page, or below the last page of a scrolled comic, and `before` one turn ahead of the first. Draw what you like in them, such as the next chapter's title. The location's `edge` says when one is showing. When the reader turns or scrolls on through an end, the `leave` event fires with `"after"` or `"before"`, and your app opens what's there. Turning the other way returns to the page they came from. Pass `"end"` as a `ComicView`'s start to open a chapter at its last page, for a reader coming back into it.
+
+```ts
+const after = document.createElement("div")
+after.textContent = `Next: ${next.title}`
+const view = new ComicView(element, pages, {
+	leave: (toward) => open(toward === "after" ? next : previous),
+}, { flow: "automatic" }, savedLocator, { after })
+```
+
+With `flow: "automatic"`, `ComicView` reads a comic as one scrolling column when its first pages look like a strip, and `looksLikeStrip(sizes)` is the same test for apps that decide before opening.
 
 Plain text and Markdown open with `TextBook.plainText(file, fileName)` and `TextBook.markdown(file, fileName)`, which convert them to XHTML chapters exactly as the Swift package does, and read in `BookView` like any EPUB.
 

@@ -73,6 +73,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
     private let isCurl: Bool
     /// Kept, since a gesture recognizer doesn't keep its target.
     private var pastEndSwipe: PastEndSwipe?
+    private var pastStartSwipe: PastEndSwipe?
     /// The turn waiting for the web content to catch up, so a new one
     /// doesn't start from a stale page.
     private var settling: Task<Void, Never>?
@@ -114,6 +115,12 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
             self?.navigator.isAtEnd ?? false
         } didSwipe: { [weak self] in
             self?.navigator.didTurnPastEnd()
+        }
+        // The swipe back is the swipe on, mirrored.
+        pastStartSwipe = PastEndSwipe(in: view, isRightToLeft: !navigator.isRightToLeft) { [weak self] in
+            self?.navigator.isAtStart ?? false
+        } didSwipe: { [weak self] in
+            self?.navigator.didTurnPastStart()
         }
     }
 

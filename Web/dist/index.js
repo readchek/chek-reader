@@ -3,6 +3,7 @@
 // controls, storage and networking to the app.
 export { comicLocator, comicPageIndex, pageHref, pdfHref, pdfLocator, pdfPageIndex } from "./locator.js";
 export { nextScreen, previousScreen, screenPages, screenStart } from "./spreads.js";
+export { looksLikeStrip, turn } from "./flow.js";
 export { ComicView, } from "./comic.js";
 export { DrmError, Epub, EpubError } from "./epub.js";
 export { TextBook } from "./text.js";

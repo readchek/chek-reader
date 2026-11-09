@@ -35,6 +35,8 @@ final class ImageNavigator: ReaderNavigator {
     @ObservationIgnored private let session: Int
     @ObservationIgnored private var decoded: [Int: CGImage] = [:]
     @ObservationIgnored private var loading: [Int: Task<CGImage?, Never>] = [:]
+    /// Each loaded page's size in its file, which says what kind of comic it is.
+    @ObservationIgnored private var pixelSizes: [Int: StripDetection.PageSize] = [:]
     /// Increases with every navigation, so a superseded one is dropped.
     @ObservationIgnored private var generation = 0
     /// The longest side, in pixels, pages decode to.
@@ -131,7 +133,10 @@ final class ImageNavigator: ReaderNavigator {
                 if await !goForward(), isAtLastPage {
                     didTurnPastEnd()
                 }
-            case .backward: _ = await goBackward()
+            case .backward:
+                if await !goBackward(), index == 0 {
+                    didTurnPastStart()
+                }
             case .firstPage: _ = await show(0)
             case .lastPage: _ = await show(publication.readingOrder.count - 1)
             }
@@ -147,6 +152,11 @@ final class ImageNavigator: ReaderNavigator {
     /// pager had no page for.
     func didTurnPastEnd() {
         controller?.navigatorDidTurnPastEnd(session: session)
+    }
+
+    /// Records a turn asked for back past the first page.
+    func didTurnPastStart() {
+        controller?.navigatorDidTurnPastStart(session: session)
     }
 
     private func turn(by offset: Int) async -> Bool {
@@ -178,7 +188,7 @@ final class ImageNavigator: ReaderNavigator {
     }
 
     /// Webtoons are long strips meant to be scrolled, so the automatic flow
-    /// scrolls when the first pages are much taller than they are wide.
+    /// scrolls when the first pages have a strip's shapes.
     private func resolveScrolled() async -> Bool {
         switch comicFlow {
         case .paged: return false
@@ -189,22 +199,23 @@ final class ImageNavigator: ReaderNavigator {
             // which for a streamed chapter is most of the wait to open it.
             return false
         case .automatic:
-            // A cover is often an ordinary page even in a webtoon, so the
-            // pages after it decide. They decode together, along with the
+            // The first few pages decide, a cover among them counting as
+            // one page of several. They decode together, along with the
             // page you'll start on, so a streamed chapter shows as soon as
             // the slowest of them arrives rather than after each in turn.
-            let sample = Array(publication.readingOrder.indices.prefix(4).dropFirst(publication.readingOrder.count > 2 ? 1 : 0))
+            let sample = Array(publication.readingOrder.indices.prefix(StripDetection.sampleCount))
             let start = controller?.location.flatMap { publication.readingOrderIndex(of: $0) } ?? 0
             for index in Set(sample + [start]) where loading[index] == nil && decoded[index] == nil {
                 _ = load(index)
             }
-            var tall = 0
+            var sizes: [StripDetection.PageSize] = []
             for index in sample {
-                if let image = await image(at: index), Double(image.height) > Double(image.width) * 2 {
-                    tall += 1
-                }
+                guard let image = await image(at: index) else { continue }
+                // As the file has it where that's known: pages decode to
+                // the screen, which gives pieces of one width different ones.
+                sizes.append(pixelSizes[index] ?? StripDetection.PageSize(width: image.width, height: image.height))
             }
-            return !sample.isEmpty && tall * 2 > sample.count
+            return StripDetection.looksLikeStrip(sizes)
         }
     }
 
@@ -252,6 +263,9 @@ final class ImageNavigator: ReaderNavigator {
         let task = Task { [weak self] () -> CGImage? in
             var image: CGImage?
             if let data = try? await publication.data(at: path) {
+                if let pixels = PageDecoder.pixelSize(of: data) {
+                    self?.pixelSizes[index] = pixels
+                }
                 image = await PageDecoder.decode(data, maxPixelSize: size, minimumWidth: width)
             }
             if let image {

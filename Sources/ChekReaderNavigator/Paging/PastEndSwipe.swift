@@ -5,6 +5,10 @@ import UIKit
 /// controller with no page to turn to lets the swipe go without a word,
 /// and apps want to hear of it to go on to what comes next.
 ///
+/// The same watches the other end: made with the opposite direction and
+/// asked whether the first page is showing, it notices a swipe back past
+/// the start.
+///
 /// It watches alongside the page view controller's own gestures and never
 /// stops them.
 @MainActor

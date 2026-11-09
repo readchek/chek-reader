@@ -543,8 +543,12 @@ final class WebNavigator: ReaderNavigator {
         }
         Task {
             let wasAtEnd = isAtEnd
-            if await !perform(command), command == .forward, wasAtEnd {
+            let wasAtStart = isAtStart
+            guard await !perform(command) else { return }
+            if command == .forward, wasAtEnd {
                 controller?.navigatorDidTurnPastEnd(session: session)
+            } else if command == .backward, wasAtStart {
+                controller?.navigatorDidTurnPastStart(session: session)
             }
         }
     }
@@ -556,10 +560,22 @@ final class WebNavigator: ReaderNavigator {
         return slot.resource == publication.readingOrder.count - 1 && state.page >= state.pageCount - 1
     }
 
+    /// Whether the first page of the first resource is on screen, so a
+    /// turn back has nowhere to go.
+    var isAtStart: Bool {
+        guard let slot = currentSlot, let state = slot.state else { return false }
+        return slot.resource == 0 && state.page <= 0
+    }
+
     /// Records a turn asked for past the last page, such as a swipe the
     /// pager had no page for.
     func didTurnPastEnd() {
         controller?.navigatorDidTurnPastEnd(session: session)
+    }
+
+    /// Records a turn asked for back past the first page.
+    func didTurnPastStart() {
+        controller?.navigatorDidTurnPastStart(session: session)
     }
 
     private static func input(type: String, message: [String: Any]) -> PageCommand.Input? {

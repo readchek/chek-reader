@@ -23,6 +23,7 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
     private let isCurl: Bool
     /// Kept, since a gesture recognizer doesn't keep its target.
     private var pastEndSwipe: PastEndSwipe?
+    private var pastStartSwipe: PastEndSwipe?
 
     init(navigator: ImageNavigator) {
         self.navigator = navigator
@@ -63,6 +64,13 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
             return startAfter(page.index) == nil
         } didSwipe: { [weak self] in
             self?.navigator.didTurnPastEnd()
+        }
+        // The swipe back is the swipe on, mirrored.
+        pastStartSwipe = PastEndSwipe(in: view, isRightToLeft: !navigator.isRightToLeft) { [weak self] in
+            guard let self, let page = viewControllers?.first as? ImagePageController, !page.isZoomed else { return false }
+            return startBefore(page.index) == nil
+        } didSwipe: { [weak self] in
+            self?.navigator.didTurnPastStart()
         }
     }
 
