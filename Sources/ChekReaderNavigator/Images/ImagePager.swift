@@ -9,24 +9,37 @@ import UIKit
 /// right to left when the publication does.
 struct ImagePagerView: UIViewControllerRepresentable {
     let navigator: ImageNavigator
+    @Environment(\.readerEdgePages) private var edgePages
 
     func makeUIViewController(context: Context) -> ImagePagerController {
-        ImagePagerController(navigator: navigator)
+        ImagePagerController(navigator: navigator, edgePages: edgePages)
     }
 
-    func updateUIViewController(_ controller: ImagePagerController, context: Context) {}
+    func updateUIViewController(_ controller: ImagePagerController, context: Context) {
+        controller.setEdgePages(edgePages)
+    }
 }
 
 /// The page view controller and the pages it turns.
 final class ImagePagerController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate, ImagePaging {
     private let navigator: ImageNavigator
     private let isCurl: Bool
+    /// The pages the app gave the publication's ends, if any.
+    private var edgePages: ReaderEdgePages?
     /// Kept, since a gesture recognizer doesn't keep its target.
     private var pastEndSwipe: PastEndSwipe?
     private var pastStartSwipe: PastEndSwipe?
 
-    init(navigator: ImageNavigator) {
+    /// A page the pager can show: one of the comic's (the first of a
+    /// spread), or one outside them.
+    enum Slot: Hashable {
+        case page(Int)
+        case outside(OutsidePlace)
+    }
+
+    init(navigator: ImageNavigator, edgePages: ReaderEdgePages?) {
         self.navigator = navigator
+        self.edgePages = edgePages
         let curl = navigator.pageTransition == .curl
         isCurl = curl
         super.init(
@@ -56,21 +69,54 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         for recognizer in gestureRecognizers where recognizer is UITapGestureRecognizer {
             recognizer.isEnabled = false
         }
-        setViewControllers(pages(for: navigator.index ?? 0), direction: .forward, animated: false)
+        setViewControllers(pages(for: .page(spreadStart(of: navigator.index ?? 0))), direction: .forward, animated: false)
         navigator.pager = self
+        // With pages for the ends, the turn past one is a turn onto the
+        // page past it. Without, a swipe the pager has no page for is
+        // still a turn past the end.
         pastEndSwipe = PastEndSwipe(in: view, isRightToLeft: navigator.isRightToLeft) { [weak self] in
-            // A zoomed page pans to look around it, which isn't a turn.
-            guard let self, let page = viewControllers?.first as? ImagePageController, !page.isZoomed else { return false }
-            return startAfter(page.index) == nil
+            guard let self else { return false }
+            return isAtBoundary(.end)
         } didSwipe: { [weak self] in
             self?.navigator.didTurnPastEnd()
         }
         // The swipe back is the swipe on, mirrored.
         pastStartSwipe = PastEndSwipe(in: view, isRightToLeft: !navigator.isRightToLeft) { [weak self] in
-            guard let self, let page = viewControllers?.first as? ImagePageController, !page.isZoomed else { return false }
-            return startBefore(page.index) == nil
+            guard let self else { return false }
+            return isAtBoundary(.start)
         } didSwipe: { [weak self] in
             self?.navigator.didTurnPastStart()
+        }
+    }
+
+    /// Whether a swipe toward `edge` has no page to turn to.
+    private func isAtBoundary(_ edge: ReaderEdge) -> Bool {
+        switch currentSlot {
+        case .page(let index):
+            // A zoomed page pans to look around it, which isn't a turn.
+            guard edgePages?.has(edge) != true,
+                  let page = viewControllers?.first as? ImagePageController, !page.isZoomed
+            else { return false }
+            return edge == .end ? startAfter(index) == nil : startBefore(index) == nil
+        case .outside(let place):
+            return place == .past(edge)
+        case nil:
+            return false
+        }
+    }
+
+    /// Takes new pages for the ends, as the app learns what's either side.
+    func setEdgePages(_ pages: ReaderEdgePages?) {
+        let changed = pages?.start != edgePages?.start || pages?.end != edgePages?.end
+        edgePages = pages
+        guard isViewLoaded, let first = viewControllers?.first else { return }
+        if let pages, let edgePage = first as? EdgePageController {
+            edgePage.update(pages.content(edgePage.edge))
+        }
+        // The page view controller keeps the pages either side once it has
+        // asked for them; setting the page again asks afresh.
+        if changed, !(first is PastEdgePageController) {
+            setViewControllers([first], direction: .forward, animated: false)
         }
     }
 
@@ -78,6 +124,10 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
 
     private var currentIndex: Int? {
         (viewControllers?.first as? ImagePageController)?.index
+    }
+
+    private var currentSlot: Slot? {
+        viewControllers?.first.flatMap(slot(of:))
     }
 
     /// Whether two pages show side by side, as an open book does: on a
@@ -100,7 +150,7 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         isSpread = wide
         // Turning the device regroups the pages, keeping the one in view.
         if let currentIndex {
-            setViewControllers(pages(for: currentIndex), direction: .forward, animated: false)
+            setViewControllers(pages(for: .page(spreadStart(of: currentIndex))), direction: .forward, animated: false)
         }
     }
 
@@ -126,18 +176,94 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         return isSpread ? max(start - 2, 0) : start - 1
     }
 
+    /// The slot a turn goes to from `slot`, if any.
+    private func slot(from slot: Slot, forward: Bool) -> Slot? {
+        switch slot {
+        case .page(let index):
+            if let next = forward ? startAfter(index) : startBefore(index) {
+                return .page(next)
+            }
+            let edge: ReaderEdge = forward ? .end : .start
+            return edgePages?.has(edge) == true ? .outside(.edge(edge)) : nil
+        case .outside(let place):
+            if place.isInside(afterTurning: forward) {
+                return .page(place.edge == .end ? spreadStart(of: navigator.pageCount - 1) : 0)
+            }
+            guard let next = place.turned(forward: forward) else { return nil }
+            // Past an end's page only when reading goes through it.
+            if case .past(let edge) = next, edgePages?.goesThrough(edge) != true, place == .edge(edge) { return nil }
+            return .outside(next)
+        }
+    }
+
+    /// Whether `slot` comes after `other` in reading.
+    private func isAfter(_ slot: Slot, _ other: Slot?) -> Bool {
+        func rank(_ slot: Slot?) -> Int {
+            switch slot {
+            case .outside(.past(.start)): -2
+            case .outside(.edge(.start)): -1
+            case .page(let index): index
+            case .outside(.edge(.end)): Int.max - 1
+            case .outside(.past(.end)): Int.max
+            case nil: 0
+            }
+        }
+        return rank(slot) > rank(other)
+    }
+
     // MARK: - ImagePaging
 
     func display(page: Int, animated: Bool) {
-        let target = spreadStart(of: page)
-        guard target != currentIndex else { return }
-        let forward = target > (currentIndex ?? 0)
+        show(.page(spreadStart(of: page)), animated: animated)
+    }
+
+    func turnOutside(forward: Bool) -> Bool {
+        guard let current = currentSlot else { return false }
+        switch current {
+        case .page:
+            // Only from the last page on, or the first back.
+            guard case .outside? = slot(from: current, forward: forward) else { return false }
+        case .outside:
+            break
+        }
+        guard let target = slot(from: current, forward: forward) else { return false }
+        show(target, animated: true)
+        return true
+    }
+
+    /// Shows `target`, turning to it when `animated`, and says where it is
+    /// once it's there.
+    private func show(_ target: Slot, animated: Bool) {
+        guard target != currentSlot else { return }
+        let forward = isAfter(target, currentSlot)
         let animate = animated && !UIAccessibility.isReduceMotionEnabled
-        setViewControllers(
-            pages(for: target, animated: animate),
-            direction: forward ? .forward : .reverse,
-            animated: animate
-        )
+        setViewControllers(pages(for: target, animated: animate), direction: forward ? .forward : .reverse, animated: animate) { [weak self] _ in
+            // Comic pages are recorded as they're asked for; the other
+            // places once they're on screen, as after a swipe.
+            if case .outside = target {
+                self?.didSettle(on: target)
+            } else {
+                self?.navigator.didShowEdge(nil)
+            }
+        }
+    }
+
+    /// Tells the navigator where a turn left the pager.
+    private func didSettle(on slot: Slot) {
+        switch slot {
+        case .page(let index):
+            navigator.didShow(index)
+            navigator.didShowEdge(nil)
+        case .outside(.edge(let edge)):
+            navigator.didShowEdge(edge)
+        case .outside(.past(let edge)):
+            navigator.didShowEdge(edge)
+            if edge == .end {
+                navigator.didTurnPastEnd()
+            } else {
+                navigator.didTurnPastStart()
+            }
+        }
     }
 
     // MARK: - Data source
@@ -146,19 +272,39 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         ImagePageController(index: start, partner: spreadPartner(of: start), pager: self)
     }
 
-    /// The pages to set for `index`. With a spine at the edge, UIKit takes
-    /// the front alone, and asks the data source for its back.
-    private func pages(for index: Int, animated: Bool = false) -> [UIViewController] {
-        let front = page(at: spreadStart(of: index))
-        // A double-sided curl takes the back too, but only when animated.
-        return isCurl && animated ? [front, back(of: front.index)] : [front]
+    private func front(for slot: Slot) -> UIViewController {
+        switch slot {
+        case .page(let start):
+            return page(at: start)
+        case .outside(.edge(let edge)):
+            return EdgePageController(edge: edge, content: edgePages?.content(edge) ?? AnyView(EmptyView()), pageColor: .black)
+        case .outside(.past(let edge)):
+            return PastEdgePageController(edge: edge, pageColor: .black)
+        }
     }
 
-    private func back(of index: Int) -> PageBackController {
-        let back = PageBackController(front: index, image: nil, pageColor: .black)
+    private func slot(of viewController: UIViewController) -> Slot? {
+        switch viewController {
+        case let page as ImagePageController: .page(page.index)
+        case let edge as EdgePageController: .outside(.edge(edge.edge))
+        case let past as PastEdgePageController: .outside(.past(past.edge))
+        default: nil
+        }
+    }
+
+    /// The pages to set for `slot`. With a spine at the edge, UIKit takes
+    /// the front alone, and asks the data source for its back.
+    private func pages(for slot: Slot, animated: Bool = false) -> [UIViewController] {
+        let front = front(for: slot)
+        // A double-sided curl takes the back too, but only when animated.
+        return isCurl && animated ? [front, back(of: slot)] : [front]
+    }
+
+    private func back(of slot: Slot) -> PageBackController {
+        let back = PageBackController(front: slot, image: nil, pageColor: .black)
         // A spread's back would be two pages too; plain black reads as a
-        // page's reverse well enough.
-        if !isSpread {
+        // page's reverse well enough, as it does for the ends' pages.
+        if case .page(let index) = slot, !isSpread {
             Task { [weak back, navigator] in
                 let image = await navigator.image(at: index)
                 back?.setImage(image.map { UIImage(cgImage: $0) })
@@ -170,27 +316,27 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
     // With a curl, every front is followed by its back.
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
-        if let back = viewController as? PageBackController, let index = back.front.base as? Int {
-            return page(at: index)
+        if let back = viewController as? PageBackController, let slot = back.front.base as? Slot {
+            return front(for: slot)
         }
-        guard let current = viewController as? ImagePageController, let previous = startBefore(current.index) else { return nil }
-        return isCurl ? back(of: previous) : page(at: previous)
+        guard let current = slot(of: viewController), let previous = slot(from: current, forward: false) else { return nil }
+        return isCurl ? back(of: previous) : front(for: previous)
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
-        if isCurl, let current = viewController as? ImagePageController {
-            return back(of: current.index)
+        if isCurl, let current = slot(of: viewController) {
+            return back(of: current)
         }
-        let index = (viewController as? PageBackController)?.front.base as? Int ?? (viewController as? ImagePageController)?.index
-        guard let index, let next = startAfter(index) else { return nil }
-        return page(at: next)
+        let current = (viewController as? PageBackController)?.front.base as? Slot ?? slot(of: viewController)
+        guard let current, let next = slot(from: current, forward: true) else { return nil }
+        return front(for: next)
     }
 
     // MARK: - Delegate
 
     func pageViewController(_ pageViewController: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
-        guard completed, let currentIndex else { return }
-        navigator.didShow(currentIndex)
+        guard completed, let currentSlot else { return }
+        didSettle(on: currentSlot)
     }
 
     // MARK: - Pages

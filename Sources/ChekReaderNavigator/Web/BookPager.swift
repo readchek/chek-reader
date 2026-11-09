@@ -27,6 +27,10 @@ protocol BookPaging: AnyObject {
     func uncover()
     /// Stops the web views panning on their own, for ones just created.
     func stopContentScrolling()
+    /// Turns onto, through or back from the pages outside the book's, such
+    /// as the end's own page. Returns `false` when the turn isn't one of
+    /// those, so it's an ordinary page turn or none.
+    func turnOutside(forward: Bool) async -> Bool
 }
 
 enum BookSnapshot {
@@ -52,17 +56,19 @@ import UIKit
 struct BookPagerView<Content: View>: UIViewControllerRepresentable {
     let navigator: WebNavigator
     @ViewBuilder let content: () -> Content
+    @Environment(\.readerEdgePages) private var edgePages
 
     func makeUIViewController(context: Context) -> BookPagerController<Content> {
         let hosting = UIHostingController(rootView: content())
         // The page is laid out once for the screen. Bars and the status bar
         // coming and going must not change its safe area and move the text.
         hosting.safeAreaRegions = []
-        return BookPagerController(navigator: navigator, live: hosting)
+        return BookPagerController(navigator: navigator, live: hosting, edgePages: edgePages)
     }
 
     func updateUIViewController(_ controller: BookPagerController<Content>, context: Context) {
         controller.live.rootView = content()
+        controller.setEdgePages(edgePages)
     }
 }
 
@@ -71,6 +77,8 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
     let live: UIHostingController<Content>
     private lazy var liveController = LivePageController(hosting: live)
     private let isCurl: Bool
+    /// The pages the app gave the book's ends, if any.
+    private var edgePages: ReaderEdgePages?
     /// Kept, since a gesture recognizer doesn't keep its target.
     private var pastEndSwipe: PastEndSwipe?
     private var pastStartSwipe: PastEndSwipe?
@@ -78,9 +86,10 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
     /// doesn't start from a stale page.
     private var settling: Task<Void, Never>?
 
-    init(navigator: WebNavigator, live: UIHostingController<Content>) {
+    init(navigator: WebNavigator, live: UIHostingController<Content>, edgePages: ReaderEdgePages?) {
         self.navigator = navigator
         self.live = live
+        self.edgePages = edgePages
         let curl = navigator.pageTransition == .curl
         isCurl = curl
         super.init(
@@ -111,17 +120,126 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         }
         setViewControllers(pages(for: liveController), direction: .forward, animated: false)
         navigator.pager = self
+        // With pages for the ends, the turn past one is a turn onto the
+        // page past it. Without, a swipe the pager has no page for is
+        // still a turn past the end.
         pastEndSwipe = PastEndSwipe(in: view, isRightToLeft: navigator.isRightToLeft) { [weak self] in
-            self?.navigator.isAtEnd ?? false
+            self?.isAtBoundary(.end) ?? false
         } didSwipe: { [weak self] in
             self?.navigator.didTurnPastEnd()
         }
         // The swipe back is the swipe on, mirrored.
         pastStartSwipe = PastEndSwipe(in: view, isRightToLeft: !navigator.isRightToLeft) { [weak self] in
-            self?.navigator.isAtStart ?? false
+            self?.isAtBoundary(.start) ?? false
         } didSwipe: { [weak self] in
             self?.navigator.didTurnPastStart()
         }
+    }
+
+    /// Whether a swipe toward `edge` has no page to turn to.
+    private func isAtBoundary(_ edge: ReaderEdge) -> Bool {
+        if let place = viewControllers?.first.flatMap(outsidePlace(of:)) {
+            return place == .past(edge)
+        }
+        guard edgePages?.has(edge) != true else { return false }
+        return edge == .end ? navigator.isAtEnd : navigator.isAtStart
+    }
+
+    /// Takes new pages for the ends, as the app learns what's either side.
+    func setEdgePages(_ pages: ReaderEdgePages?) {
+        let changed = pages?.start != edgePages?.start || pages?.end != edgePages?.end
+        edgePages = pages
+        guard isViewLoaded, let first = viewControllers?.first else { return }
+        if let pages, let edgePage = first as? EdgePageController {
+            edgePage.update(pages.content(edgePage.edge))
+        }
+        // The page view controller keeps the pages either side once it has
+        // asked for them; setting the page again asks afresh.
+        if changed, !(first is PastEdgePageController) {
+            setViewControllers([first], direction: .forward, animated: false)
+        }
+    }
+
+    private func outsidePlace(of viewController: UIViewController) -> OutsidePlace? {
+        switch viewController {
+        case let edge as EdgePageController: .edge(edge.edge)
+        case let past as PastEdgePageController: .past(past.edge)
+        default: nil
+        }
+    }
+
+    private func outsidePage(_ place: OutsidePlace) -> UIViewController {
+        switch place {
+        case .edge(let edge):
+            EdgePageController(edge: edge, content: edgePages?.content(edge) ?? AnyView(EmptyView()), pageColor: pageColor)
+        case .past(let edge):
+            PastEdgePageController(edge: edge, pageColor: pageColor)
+        }
+    }
+
+    /// The place a turn goes to from outside place `place`, if it stays
+    /// outside: past an end's page only when reading goes through it.
+    private func outsidePlace(from place: OutsidePlace, forward: Bool) -> OutsidePlace? {
+        guard let next = place.turned(forward: forward) else { return nil }
+        if case .past(let edge) = next, place == .edge(edge), edgePages?.goesThrough(edge) != true { return nil }
+        return next
+    }
+
+    /// The back of an outside page as it curls: plain, in the page's color.
+    private func outsideBack(_ place: OutsidePlace) -> PageBackController {
+        PageBackController(front: place, image: nil, pageColor: pageColor)
+    }
+
+    /// The outside place a turn goes to from the book's page at `position`.
+    private func outsidePlace(from position: BookPosition, forward: Bool) -> OutsidePlace? {
+        let edge: ReaderEdge = forward ? .end : .start
+        guard edgePages?.has(edge) == true, forward ? navigator.isLast(position) : navigator.isFirst(position) else { return nil }
+        return .edge(edge)
+    }
+
+    /// Tells the navigator where a turn left the pager.
+    private func didSettle(on viewController: UIViewController) {
+        guard let place = outsidePlace(of: viewController) else {
+            navigator.didShowEdge(nil)
+            return
+        }
+        navigator.didShowEdge(place.edge)
+        if case .past(let edge) = place {
+            if edge == .end {
+                navigator.didTurnPastEnd()
+            } else {
+                navigator.didTurnPastStart()
+            }
+        }
+    }
+
+    func turnOutside(forward: Bool) async -> Bool {
+        guard let first = viewControllers?.first else { return false }
+        let target: OutsidePlace
+        if let place = outsidePlace(of: first) {
+            if place.isInside(afterTurning: forward) {
+                // Back to the page you left, where the content still is.
+                guard let position = navigator.position else { return false }
+                await turn(to: position, forward: forward)
+                return true
+            }
+            guard let next = outsidePlace(from: place, forward: forward) else { return false }
+            target = next
+        } else {
+            guard let position = navigator.position, let next = outsidePlace(from: position, forward: forward) else { return false }
+            target = next
+        }
+        await settling?.value
+        let page = outsidePage(target)
+        let animate = !UIAccessibility.isReduceMotionEnabled
+        let pages = isCurl && animate ? [page, outsideBack(target)] : [page]
+        await withCheckedContinuation { continuation in
+            setViewControllers(pages, direction: forward ? .forward : .reverse, animated: animate) { _ in
+                continuation.resume()
+            }
+        }
+        didSettle(on: page)
+        return true
     }
 
     /// The pages to set for `front`. A double-sided curl takes the front
@@ -167,6 +285,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
                 continuation.resume()
             }
         }
+        navigator.didShowEdge(nil)
         settle(on: position)
     }
 
@@ -204,20 +323,51 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
     // something to show as it lifts.
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerBefore viewController: UIViewController) -> UIViewController? {
-        if let back = viewController as? PageBackController, let position = back.front.base as? BookPosition {
-            return snapshotPage(at: position)
+        if let back = viewController as? PageBackController {
+            if let position = back.front.base as? BookPosition {
+                return snapshotPage(at: position)
+            }
+            return (back.front.base as? OutsidePlace).map(outsidePage)
         }
-        guard let here = position(of: viewController), let target = navigator.position(before: here) else { return nil }
+        if let place = outsidePlace(of: viewController) {
+            if place.isInside(afterTurning: false) {
+                // The last page, where the content was left.
+                guard let position = navigator.position else { return nil }
+                let front = snapshotPage(at: position)
+                return isCurl ? back(of: position, front: front) : front
+            }
+            return outsidePlace(from: place, forward: false).map { isCurl ? outsideBack($0) : outsidePage($0) }
+        }
+        guard let here = position(of: viewController) else { return nil }
+        guard let target = navigator.position(before: here) else {
+            return outsidePlace(from: here, forward: false).map { isCurl ? outsideBack($0) : outsidePage($0) }
+        }
         let front = snapshotPage(at: target)
         return isCurl ? back(of: target, front: front) : front
     }
 
     func pageViewController(_ pageViewController: UIPageViewController, viewControllerAfter viewController: UIViewController) -> UIViewController? {
-        if isCurl, !(viewController is PageBackController), let here = position(of: viewController) {
-            return back(of: here, front: viewController)
+        if isCurl, !(viewController is PageBackController) {
+            if let place = outsidePlace(of: viewController) {
+                return outsideBack(place)
+            }
+            if let here = position(of: viewController) {
+                return back(of: here, front: viewController)
+            }
         }
-        let here = (viewController as? PageBackController)?.front.base as? BookPosition ?? position(of: viewController)
-        guard let here, let target = navigator.position(after: here) else { return nil }
+        let back = viewController as? PageBackController
+        if let place = back?.front.base as? OutsidePlace ?? outsidePlace(of: viewController) {
+            if place.isInside(afterTurning: true) {
+                // The first page, where the content was left.
+                return navigator.position.map(snapshotPage(at:))
+            }
+            return outsidePlace(from: place, forward: true).map(outsidePage)
+        }
+        let here = back?.front.base as? BookPosition ?? position(of: viewController)
+        guard let here else { return nil }
+        guard let target = navigator.position(after: here) else {
+            return outsidePlace(from: here, forward: true).map(outsidePage)
+        }
         return snapshotPage(at: target)
     }
 
@@ -225,7 +375,7 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
         if let page = viewController as? SnapshotPageController {
             return page.position
         }
-        if viewController is PageBackController {
+        if viewController is PageBackController || outsidePlace(of: viewController) != nil {
             return nil
         }
         return navigator.position
@@ -238,8 +388,11 @@ final class BookPagerController<Content: View>: UIPageViewController, UIPageView
     // MARK: - Delegate
 
     func pageViewController(_ pageViewController: UIPageViewController, didFinishAnimating finished: Bool, previousViewControllers: [UIViewController], transitionCompleted completed: Bool) {
-        guard completed, let page = viewControllers?.first as? SnapshotPageController else { return }
-        settle(on: page.position)
+        guard completed, let first = viewControllers?.first else { return }
+        didSettle(on: first)
+        if let page = first as? SnapshotPageController {
+            settle(on: page.position)
+        }
     }
 }
 

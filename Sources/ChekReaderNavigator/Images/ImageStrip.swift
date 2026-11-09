@@ -89,6 +89,11 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         collectionView.scrollToItem(at: IndexPath(item: page, section: 0), at: .top, animated: animated && !UIAccessibility.isReduceMotionEnabled)
     }
 
+    /// The column's ends are the app's, past its first and last pages.
+    func turnOutside(forward: Bool) -> Bool {
+        false
+    }
+
     // MARK: - Data source
 
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {

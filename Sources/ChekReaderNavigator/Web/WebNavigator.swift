@@ -150,6 +150,10 @@ final class WebNavigator: ReaderNavigator {
     }
 
     private func perform(_ command: PageCommand) async -> Bool {
+        // Onto the end's page from the last, and on through the ends.
+        if let pager, command == .forward || command == .backward, await pager.turnOutside(forward: command == .forward) {
+            return true
+        }
         if let pager, let current = position {
             let target: BookPosition?
             switch command {
@@ -260,6 +264,17 @@ final class WebNavigator: ReaderNavigator {
         }
         guard publication.readingOrder.indices.contains(position.resource - 1) else { return nil }
         return BookPosition(resource: position.resource - 1, page: BookPosition.lastPage)
+    }
+
+    /// Whether `position` is the last page of the last resource.
+    func isLast(_ position: BookPosition) -> Bool {
+        guard position.resource == publication.readingOrder.count - 1, let count = pageCount(of: position.resource) else { return false }
+        return resolved(position.page, count: count) >= count - 1
+    }
+
+    /// Whether `position` is the first page of the first resource.
+    func isFirst(_ position: BookPosition) -> Bool {
+        position.resource == 0 && position.page == 0
     }
 
     /// Moves the web pages to `position` without animating; the pager has
@@ -571,6 +586,11 @@ final class WebNavigator: ReaderNavigator {
     /// pager had no page for.
     func didTurnPastEnd() {
         controller?.navigatorDidTurnPastEnd(session: session)
+    }
+
+    /// Records which end's page the pager is on, if any.
+    func didShowEdge(_ edge: ReaderEdge?) {
+        controller?.navigator(session: session, didShowEdge: edge)
     }
 
     /// Records a turn asked for back past the first page.

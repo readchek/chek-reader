@@ -48,6 +48,11 @@ public final class ReaderController {
     /// previous chapter, opened with `fromEnd` so reading back arrives at
     /// its last page.
     public private(set) var turnsPastStart = 0
+    /// The end whose own page is on screen, or that the reader has turned
+    /// on past, when the app gave the ends pages with
+    /// `readerEdgePages(start:end:content:)`. `nil` while a page of the
+    /// publication shows.
+    public private(set) var edge: ReaderEdge?
 
     /// The limits applied to every publication this controller opens.
     public let limits: ReaderLimits
@@ -84,6 +89,7 @@ public final class ReaderController {
         session += 1
         let current = session
         state = .opening
+        edge = nil
         format = nil
         publication = nil
         positions = nil
@@ -158,6 +164,7 @@ public final class ReaderController {
         session += 1
         navigator = nil
         source = nil
+        edge = nil
         guard state != .idle, state != .closed else { return }
         state = .closing
         publication = nil
@@ -287,6 +294,12 @@ public final class ReaderController {
     func navigatorDidTapMiddle(session: Int) {
         guard session == self.session, state == .ready else { return }
         middleTapCount += 1
+    }
+
+    /// Records which end's page is showing, if any, unless its session is stale.
+    func navigator(session: Int, didShowEdge edge: ReaderEdge?) {
+        guard session == self.session, state == .ready, edge != self.edge else { return }
+        self.edge = edge
     }
 
     /// Records a turn asked for past the last page, unless its session is stale.

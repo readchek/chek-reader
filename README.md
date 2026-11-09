@@ -175,6 +175,15 @@ To go on to a series' next chapter when the reader turns past the last page, wat
 }
 ```
 
+To give each end a page of its own, such as one naming the next chapter, add `readerEdgePages(start:end:content:)` around `NavigatorView`. Comics turned a page at a time and books turn onto it as onto any page, with the same slide or curl under the finger. When an end is `.through`, one more turn goes onto a plain page past it and counts in `turnsPastEnd` or `turnsPastStart`, so the next chapter opens while that page shows; a `.stop` is as far as reading goes. `controller.edge` says which end's page is showing. The content is hosted on its own, so pass it what it reads from the environment, and turn from it with `goForward()` and `goBackward()`. Comics that scroll and PDFs leave the ends to the app:
+
+```swift
+NavigatorView(controller: controller)
+    .readerEdgePages(start: hasPrevious ? .through : .none, end: hasNext ? .through : .stop) { edge in
+        ChapterEndView(edge: edge)
+    }
+```
+
 Searching reads every chapter, so run it off the critical path. Each result is a `Locator` with the matched text and the words around it, in reading order, that `go(to:)` opens at the page holding the match. PDF searches through PDFKit, and comics find nothing:
 
 ```swift
