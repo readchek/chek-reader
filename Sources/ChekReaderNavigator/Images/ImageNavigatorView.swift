@@ -47,11 +47,9 @@ struct ImageNavigatorView: View {
         #if os(iOS)
         if navigator?.isScrolled == nil {
             // The first pages are being looked at to choose a layout, which
-            // for streamed pages means fetching them, so say so at once
-            // rather than show a blank page.
-            ProgressView()
-                .controlSize(.large)
-                .tint(.white)
+            // for streamed pages means fetching them, so say so when that
+            // takes a moment. Pages fetched ahead decide it before then.
+            DelayedSpinner()
         }
         if let navigator, let isScrolled = navigator.isScrolled {
             if isScrolled {
@@ -88,6 +86,22 @@ struct ImageNavigatorView: View {
             }
         )
         #endif
+    }
+
+    /// A large spinner that shows only once it's been waited on a moment.
+    private struct DelayedSpinner: View {
+        @State private var isShowing = false
+
+        var body: some View {
+            ProgressView()
+                .controlSize(.large)
+                .tint(.white)
+                .opacity(isShowing ? 1 : 0)
+                .task {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    isShowing = true
+                }
+        }
     }
 
     private static func key(_ key: KeyEquivalent) -> PageCommand.Input.Key? {

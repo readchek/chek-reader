@@ -51,8 +51,10 @@ extension View {
     /// from it with ``ReaderController/goForward()`` and
     /// ``ReaderController/goBackward()``.
     ///
-    /// Comics turned a page at a time and books use these pages. Comics
-    /// that scroll and PDFs leave the ends to the app, as before.
+    /// Comics and books use these pages. A comic that scrolls has them in
+    /// the column, a screen tall, before its first page and after its
+    /// last, and pulling on past one counts as the turn past it. PDFs
+    /// leave the ends to the app, as before.
     ///
     /// - Parameters:
     ///   - start: What's before the first page, such as a page naming the
@@ -141,7 +143,13 @@ final class PastEdgePageController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        spinner.startAnimating()
+        // Only once opening is slow enough to wonder about: what comes
+        // next is usually fetched ahead, and a spinner that flashes for a
+        // moment is noise.
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(600))
+            self?.spinner.startAnimating()
+        }
     }
 }
 

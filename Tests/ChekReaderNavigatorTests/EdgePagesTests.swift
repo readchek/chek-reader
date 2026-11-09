@@ -27,4 +27,10 @@ import Testing
         #expect(OutsidePlace.past(.start).edge == .start)
         #expect(OutsidePlace.edge(.end).edge == .end)
     }
+
+    @Test func onlyAStopEndsTurnsPast() {
+        #expect(ReaderEdgePage.none.countsTurnsPast)
+        #expect(ReaderEdgePage.through.countsTurnsPast)
+        #expect(!ReaderEdgePage.stop.countsTurnsPast)
+    }
 }
