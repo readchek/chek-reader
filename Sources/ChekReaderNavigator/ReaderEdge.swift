@@ -11,6 +11,19 @@ public enum ReaderEdge: Hashable, Sendable {
     case end
 }
 
+/// What an app gives one end of a publication with
+/// `readerEdgePages(start:end:content:)`.
+public enum ReaderEdgePage: Hashable, Sendable {
+    /// No page: a turn past the end is only counted.
+    case none
+    /// A page that reading stops at, such as one saying there's no chapter
+    /// after this one.
+    case stop
+    /// A page that reading goes on through, to whatever's past it, such as
+    /// the next chapter.
+    case through
+}
+
 /// Where a page view controller can be outside a publication's pages: on
 /// an end's own page, or on the page past it, which opens what comes next.
 enum OutsidePlace: Hashable {

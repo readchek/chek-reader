@@ -115,7 +115,7 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
         }
         // The page view controller keeps the pages either side once it has
         // asked for them; setting the page again asks afresh.
-        if changed, case .page = currentSlot {
+        if changed, !(first is PastEdgePageController) {
             setViewControllers([first], direction: .forward, animated: false)
         }
     }
@@ -189,7 +189,10 @@ final class ImagePagerController: UIPageViewController, UIPageViewControllerData
             if place.isInside(afterTurning: forward) {
                 return .page(place.edge == .end ? spreadStart(of: navigator.pageCount - 1) : 0)
             }
-            return place.turned(forward: forward).map(Slot.outside)
+            guard let next = place.turned(forward: forward) else { return nil }
+            // Past an end's page only when reading goes through it.
+            if case .past(let edge) = next, edgePages?.goesThrough(edge) != true, place == .edge(edge) { return nil }
+            return .outside(next)
         }
     }
 

@@ -4,18 +4,28 @@ public import SwiftUI
 /// The pages an app gives a publication's ends, read by the page-turning
 /// views from the environment.
 struct ReaderEdgePages: Sendable {
-    /// Whether there's a page before the first.
-    var start: Bool
-    /// Whether there's a page after the last.
-    var end: Bool
+    /// What's before the first page.
+    var start: ReaderEdgePage
+    /// What's after the last page.
+    var end: ReaderEdgePage
     /// What each end's page shows.
     var content: @MainActor @Sendable (ReaderEdge) -> AnyView
 
-    func has(_ edge: ReaderEdge) -> Bool {
+    func page(at edge: ReaderEdge) -> ReaderEdgePage {
         switch edge {
         case .start: start
         case .end: end
         }
+    }
+
+    /// Whether `edge` has a page of its own.
+    func has(_ edge: ReaderEdge) -> Bool {
+        page(at: edge) != .none
+    }
+
+    /// Whether reading goes on past `edge`'s page.
+    func goesThrough(_ edge: ReaderEdge) -> Bool {
+        page(at: edge) == .through
     }
 }
 
@@ -28,9 +38,11 @@ extension View {
     /// pages are: with the same swipe following your finger, slide or curl,
     /// and the same taps and keys.
     ///
-    /// One turn on past the last page shows `content(.end)`, and one more
-    /// counts in ``ReaderController/turnsPastEnd``, so the app can open
-    /// what comes next; the start works the same way, counting in
+    /// One turn on past the last page shows `content(.end)`. When reading
+    /// goes ``ReaderEdgePage/through`` it, one more turns onto a plain page
+    /// past it and counts in ``ReaderController/turnsPastEnd``, so the app
+    /// can open what comes next there; a ``ReaderEdgePage/stop`` is as far
+    /// as reading goes. The start works the same way, counting in
     /// ``ReaderController/turnsPastStart``. While an end's page or the one
     /// past it shows, ``ReaderController/edge`` says which end it is.
     ///
@@ -43,13 +55,13 @@ extension View {
     /// that scroll and PDFs leave the ends to the app, as before.
     ///
     /// - Parameters:
-    ///   - start: Whether there's a page before the first, such as when
-    ///     there's a chapter before.
-    ///   - end: Whether there's a page after the last.
+    ///   - start: What's before the first page, such as a page naming the
+    ///     chapter before, which reading goes through.
+    ///   - end: What's after the last page.
     ///   - content: The page for an end.
     public func readerEdgePages<Content: View>(
-        start: Bool,
-        end: Bool,
+        start: ReaderEdgePage,
+        end: ReaderEdgePage,
         @ViewBuilder content: @escaping @MainActor @Sendable (ReaderEdge) -> Content
     ) -> some View {
         environment(\.readerEdgePages, ReaderEdgePages(start: start, end: end) { AnyView(content($0)) })
