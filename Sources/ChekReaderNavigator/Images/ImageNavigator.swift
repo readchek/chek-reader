@@ -99,11 +99,14 @@ final class ImageNavigator: ReaderNavigator {
     }
 
     func goForward() async -> Bool {
-        await turn(by: 1)
+        // Onto the end's page from the last, and on through the ends.
+        if let pager, pager.turnOutside(forward: true) { return true }
+        return await turn(by: 1)
     }
 
     func goBackward() async -> Bool {
-        await turn(by: -1)
+        if let pager, pager.turnOutside(forward: false) { return true }
+        return await turn(by: -1)
     }
 
     /// Pages keep their publisher's look, so only the page transition applies.
@@ -152,6 +155,11 @@ final class ImageNavigator: ReaderNavigator {
     /// pager had no page for.
     func didTurnPastEnd() {
         controller?.navigatorDidTurnPastEnd(session: session)
+    }
+
+    /// Records which end's page the pager is on, if any.
+    func didShowEdge(_ edge: ReaderEdge?) {
+        controller?.navigator(session: session, didShowEdge: edge)
     }
 
     /// Records a turn asked for back past the first page.
@@ -313,5 +321,9 @@ final class ImageNavigator: ReaderNavigator {
 protocol ImagePaging: AnyObject {
     /// Shows `page`, turning to it when `animated`.
     func display(page: Int, animated: Bool)
+    /// Turns onto, through or back from the pages outside the comic's,
+    /// such as the end's own page. Returns `false` when the turn isn't one
+    /// of those, so it's an ordinary page turn or none.
+    func turnOutside(forward: Bool) -> Bool
 }
 #endif
