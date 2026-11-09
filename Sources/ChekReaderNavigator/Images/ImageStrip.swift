@@ -155,6 +155,9 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         let end = max(scrollView.contentSize.height, scrollView.bounds.height)
         if scrollView.contentOffset.y + scrollView.bounds.height - end > 80 {
             navigator.didTurnPastEnd()
+        } else if scrollView.contentOffset.y < -80 {
+            // And down past its start, to go back into what came before.
+            navigator.didTurnPastStart()
         }
     }
 
@@ -174,6 +177,10 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         let target = min(max(collectionView.contentOffset.y + distance, 0), maxOffset)
         if forward, collectionView.contentOffset.y >= maxOffset - 1 {
             navigator.didTurnPastEnd()
+            return
+        }
+        if backward, collectionView.contentOffset.y <= 1 {
+            navigator.didTurnPastStart()
             return
         }
         isAnimatingTap = true

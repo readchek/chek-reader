@@ -187,4 +187,33 @@ import Testing
         controller.navigatorDidTurnPastEnd(session: first)
         #expect(controller.turnsPastEnd == 1)
     }
+
+    @Test func countsTurnsPastTheStartOnlyForTheCurrentSession() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let controller = ReaderController()
+        controller.navigatorDidTurnPastStart(session: controller.session)
+        #expect(controller.turnsPastStart == 0)
+
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        let first = controller.session
+        controller.navigatorDidTurnPastStart(session: first)
+        #expect(controller.turnsPastStart == 1)
+        #expect(controller.turnsPastEnd == 0)
+
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)))
+        controller.navigatorDidTurnPastStart(session: first)
+        #expect(controller.turnsPastStart == 1)
+    }
+
+    @Test func opensAtTheEndWhenReadBackInto() async throws {
+        ReaderFormats.register(EPUBModule.self)
+        let controller = ReaderController()
+        try await controller.open(.data(EPUBFixture.book(EPUBFixture.epub3)), fromEnd: true)
+        let publication = try #require(controller.publication)
+        let last = try #require(publication.readingOrder.last)
+        let location = try #require(controller.location)
+        #expect(publication.readingOrderIndex(of: location) == publication.readingOrder.count - 1)
+        #expect(Link(href: location.href).path == last.path)
+        #expect(location.locations.progression == 1)
+    }
 }

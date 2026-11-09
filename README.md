@@ -164,11 +164,14 @@ await controller.goForward()
 await controller.setPreferences(ReaderPreferences(fontScale: 1.5, theme: .dark))
 ```
 
-To go on to a series' next chapter when the reader turns past the last page, watch `turnsPastEnd`. It counts taps, keys and swipes toward a next page that isn't there, and pulls past the end of a scrolled comic. PDF doesn't report them yet:
+To go on to a series' next chapter when the reader turns past the last page, watch `turnsPastEnd`. It counts taps, keys and swipes toward a next page that isn't there, and pulls past the end of a scrolled comic. `turnsPastStart` counts the same back past the first page. Open the chapter before with `fromEnd: true`, so reading back arrives at its last page. PDF doesn't report either yet:
 
 ```swift
 .onChange(of: controller.turnsPastEnd) {
     openNextChapter()
+}
+.onChange(of: controller.turnsPastStart) {
+    Task { try await controller.open(previousChapter, fromEnd: true) }
 }
 ```
 

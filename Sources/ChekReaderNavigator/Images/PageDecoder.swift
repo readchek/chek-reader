@@ -9,6 +9,19 @@ import ImageIO
 /// straight to the size it's shown at, rather than full size, keeps a page
 /// turn within a frame or two and memory to a few screens' worth.
 enum PageDecoder {
+    /// The size of the image in `data` as its file has it, read from its
+    /// header without decoding it. `nil` when ImageIO can't read it.
+    static func pixelSize(of data: Data) -> StripDetection.PageSize? {
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, options),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0, height > 0
+        else { return nil }
+        return StripDetection.PageSize(width: width, height: height)
+    }
+
     /// The image in `data`, its longest side at most `maxPixelSize`, with
     /// its EXIF orientation applied. `nil` when ImageIO can't read it.
     ///

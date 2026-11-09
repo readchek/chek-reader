@@ -42,6 +42,12 @@ public final class ReaderController {
     /// go on to whatever comes next, such as a series' next chapter, so
     /// reading on never needs a button.
     public private(set) var turnsPastEnd = 0
+    /// Counts page turns asked for back past the first page, by a tap,
+    /// swipe, key or pulling a scrolled comic down past its start. Apps
+    /// watch it to go back into whatever comes before, such as a series'
+    /// previous chapter, opened with `fromEnd` so reading back arrives at
+    /// its last page.
+    public private(set) var turnsPastStart = 0
 
     /// The limits applied to every publication this controller opens.
     public let limits: ReaderLimits
@@ -71,7 +77,10 @@ public final class ReaderController {
     /// Returns once the publication is parsed and ready to show. If another
     /// `open` or ``close()`` starts first, this call returns without
     /// changing state.
-    public func open(_ source: PublicationSource, at location: Locator? = nil) async throws(ReaderError) {
+    ///
+    /// With no `location`, `fromEnd` starts on the last page rather than
+    /// the first, for a reader turning back into it from what follows.
+    public func open(_ source: PublicationSource, at location: Locator? = nil, fromEnd: Bool = false) async throws(ReaderError) {
         session += 1
         let current = session
         state = .opening
@@ -119,6 +128,10 @@ public final class ReaderController {
         }
         if let location, opened.readingOrderIndex(of: location) == nil {
             self.location = nil
+        }
+        if self.location == nil, fromEnd, let last = opened.readingOrder.last, var end = opened.locator(for: last) {
+            end.locations.progression = 1
+            self.location = end
         }
         self.location = self.location ?? opened.startLocator
         publication = opened
@@ -280,6 +293,12 @@ public final class ReaderController {
     func navigatorDidTurnPastEnd(session: Int) {
         guard session == self.session, state == .ready else { return }
         turnsPastEnd += 1
+    }
+
+    /// Records a turn asked for back past the first page, unless its session is stale.
+    func navigatorDidTurnPastStart(session: Int) {
+        guard session == self.session, state == .ready else { return }
+        turnsPastStart += 1
     }
 
     private func fail(_ error: ReaderError) throws(ReaderError) {
