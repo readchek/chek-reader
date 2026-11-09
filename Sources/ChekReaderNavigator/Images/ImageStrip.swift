@@ -34,6 +34,9 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
     private var hasPlacedStart = false
     /// A tap scroll is running, which counts as reading like a drag does.
     private var isAnimatingTap = false
+    /// Placed with the last page at the screen's foot, which holds as its
+    /// pages decode to their real sizes, until the column is touched.
+    private var keepsLastPageAtFoot = false
 
     /// The column's sections: the start's page, the comic's, the end's.
     private enum Section: Int, CaseIterable {
@@ -92,6 +95,7 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         if index > 0 || hasPage(.start) {
             collectionView.layoutIfNeeded()
             let isLast = index == navigator.pageCount - 1 && hasPage(.end)
+            keepsLastPageAtFoot = isLast
             collectionView.scrollToItem(at: pageIndexPath(index), at: isLast ? .bottom : .top, animated: false)
         }
         // Scrolling before this is the column settling, not reading, and
@@ -143,6 +147,7 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
             return
         }
         reportedIndex = page
+        keepsLastPageAtFoot = false
         collectionView.scrollToItem(at: pageIndexPath(page), at: .top, animated: animated && !UIAccessibility.isReduceMotionEnabled)
         report(edge: nil)
     }
@@ -240,8 +245,10 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
             UIView.performWithoutAnimation {
                 collectionView.collectionViewLayout.invalidateLayout()
                 collectionView.layoutIfNeeded()
-                // A page above the screen growing would push the reader down.
-                if index < top {
+                if keepsLastPageAtFoot {
+                    collectionView.scrollToItem(at: pageIndexPath(navigator.pageCount - 1), at: .bottom, animated: false)
+                } else if index < top {
+                    // A page above the screen growing would push the reader down.
                     collectionView.contentOffset.y += change
                 }
             }
@@ -264,6 +271,10 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         else { return }
         reportedIndex = indexPath.item
         navigator.didShow(indexPath.item)
+    }
+
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        keepsLastPageAtFoot = false
     }
 
     /// The end whose page covers most of the screen, if either does.
@@ -329,6 +340,7 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
     /// Scrolls on or back by most of a screen, or past the end when it's
     /// already in view.
     private func step(forward: Bool) {
+        keepsLastPageAtFoot = false
         let distance = collectionView.bounds.height * 0.85 * (forward ? 1 : -1)
         let maxOffset = max(collectionView.contentSize.height - collectionView.bounds.height, 0)
         let target = min(max(collectionView.contentOffset.y + distance, 0), maxOffset)
