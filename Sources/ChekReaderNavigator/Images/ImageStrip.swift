@@ -86,10 +86,13 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         // it places itself once it does.
         guard !hasPlacedStart, collectionView.bounds.width > 0, let index = navigator.index else { return }
         reportedIndex = index
-        // At the page, past the start's own page above it.
+        // At the page, past the start's own page above it. The last page
+        // ends at the screen's foot, with the end's own page below it
+        // rather than in its place, as reading back into a chapter arrives.
         if index > 0 || hasPage(.start) {
             collectionView.layoutIfNeeded()
-            collectionView.scrollToItem(at: pageIndexPath(index), at: .top, animated: false)
+            let isLast = index == navigator.pageCount - 1 && hasPage(.end)
+            collectionView.scrollToItem(at: pageIndexPath(index), at: isLast ? .bottom : .top, animated: false)
         }
         // Scrolling before this is the column settling, not reading, and
         // would otherwise record the first page as where you are.
