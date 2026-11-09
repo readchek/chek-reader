@@ -22,6 +22,13 @@ public enum ReaderEdgePage: Hashable, Sendable {
     /// A page that reading goes on through, to whatever's past it, such as
     /// the next chapter.
     case through
+
+    /// Whether a turn or pull on past this end counts as one past it.
+    /// Without a page, every one does, for the app to act on; a stop is
+    /// where reading ends.
+    var countsTurnsPast: Bool {
+        self != .stop
+    }
 }
 
 /// Where a page view controller can be outside a publication's pages: on
