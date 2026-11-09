@@ -1,3 +1,4 @@
+import { type Edge } from "./flow.js";
 import { type Locator } from "./locator.js";
 /** Where a comic's pages come from, such as a server's page endpoint. */
 export interface PageSource {
@@ -25,6 +26,17 @@ export interface ComicOptions {
     direction: ReadingDirection;
     spreads: Spreads;
 }
+/**
+ * What shows past either end of the pages, in the flow of reading: one
+ * turn past the last page or before the first in a paged comic, and above
+ * and below the column in a scrolled one. Apps use them to join one
+ * chapter to the next, saying what was finished and what comes after. The
+ * view places the elements and the app draws what's in them.
+ */
+export interface ComicEnds {
+    before?: HTMLElement;
+    after?: HTMLElement;
+}
 /** Where the reader is, reported after every move. */
 export interface ComicLocation {
     /** The first page on screen, from 0. */
@@ -35,13 +47,21 @@ export interface ComicLocation {
     locator: Locator;
     /** Whether the last page is on screen. */
     atEnd: boolean;
+    /** The end that's on screen in place of pages, when a paged comic has turned onto one. */
+    edge: Edge | null;
 }
 export interface ComicEvents {
     location(location: ComicLocation): void;
     /** A tap or click in the middle of the page, which apps use to show their controls. */
     tap(): void;
-    /** Turning past the last page, which apps use to offer what's next. */
+    /** Turning past the last page when nothing is given to show after it. */
     end(): void;
+    /**
+     * Reading on past what's after the last page, or back past what's
+     * before the first, which apps use to open the next or previous
+     * chapter. Only an end that was given can be left through.
+     */
+    leave(toward: Edge): void;
     /** A page that couldn't be loaded. It's tried again when it's next shown. */
     error(page: number, error: unknown): void;
 }
@@ -68,7 +88,20 @@ export declare class ComicView {
     private generation;
     private zoom;
     private lastReported;
-    constructor(element: HTMLElement, source: PageSource, events?: Partial<ComicEvents>, options?: Partial<ComicOptions>, start?: Locator | number | null);
+    /** The end a paged comic has turned onto, in place of pages. */
+    private edge;
+    /** The scrolled column's pages, in order, without what's above and below them. */
+    private slots;
+    private readonly ends;
+    private lastLeft;
+    /** Whether it opened at its end, read back into from what follows it. */
+    private fromEnd;
+    /**
+     * Where a scrolled column was opened, held there while pages above
+     * load and take their real heights, until the reader moves it.
+     */
+    private opened;
+    constructor(element: HTMLElement, source: PageSource, events?: Partial<ComicEvents>, options?: Partial<ComicOptions>, start?: Locator | number | "end" | null, ends?: ComicEnds);
     /** The first page on screen, from 0. */
     get page(): number;
     get count(): number;
@@ -78,6 +111,12 @@ export declare class ComicView {
     setOptions(options: Partial<ComicOptions>): void;
     /** Shows the page at `index`, from 0. */
     goTo(index: number): void;
+    /** Whether something shows before the first page or after the last. */
+    private get edges();
+    private turnPaged;
+    /** Whether a key is held down, repeating. Holding one turns pages but never leaves them. */
+    private held;
+    private leave;
     /** Shows the next page or spread. Returns false at the end. */
     next(): boolean;
     /** Shows the previous page or spread. Returns false at the start. */
@@ -101,9 +140,13 @@ export declare class ComicView {
     private status;
     /** Shows the screen that starts at `start`. `motion` is 1 going forward, -1 back, 0 for a jump. */
     private show;
+    /** Shows what's before the first page or after the last, as a screen of its own. */
+    private showEdge;
     private slideIn;
     private buildStrip;
     private onScroll;
+    /** Whether the column is scrolled as far as it goes, down (1) or up (-1). */
+    private scrolledToEnd;
     private scrollBy;
     private report;
     private resetZoom;

@@ -3,6 +3,7 @@
 // and input inside its element and nothing else: the app draws the
 // controls around it, decides what a tap in the middle does, and saves
 // the positions it reports.
+import { looksLikeStrip, turn } from "./flow.js";
 import { comicLocator, comicPageIndex } from "./locator.js";
 import { nextScreen, previousScreen, screenPages, screenStart } from "./spreads.js";
 const defaults = { flow: "automatic", direction: "ltr", spreads: "automatic" };
@@ -33,8 +34,11 @@ function addStyles() {
 .chek-comic[data-direction="rtl"] .chek-comic-stage[data-pages="2"] > img:first-child { object-position: left; }
 .chek-comic[data-direction="rtl"] .chek-comic-stage[data-pages="2"] > img:last-child { object-position: right; }
 .chek-comic-strip { display: flex; flex-direction: column; align-items: center; }
-.chek-comic-strip > div { width: min(100%, var(--chek-comic-strip-width, 800px)); position: relative; }
-.chek-comic-strip > div > img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; }
+.chek-comic-strip > div[data-page] { width: min(100%, var(--chek-comic-strip-width, 800px)); position: relative; }
+.chek-comic-strip > div[data-page] > img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; }
+.chek-comic-strip > .chek-comic-edge { width: 100%; }
+.chek-comic-stage > .chek-comic-edge { width: 100%; height: 100%; }
+.chek-comic-edge { user-select: text; -webkit-user-select: text; }
 .chek-comic-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 500 15px/1.4 system-ui, sans-serif; opacity: 0.6; pointer-events: none; }
 `);
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
@@ -62,17 +66,43 @@ export class ComicView {
     generation = 0;
     zoom = { scale: 1, x: 0, y: 0 };
     lastReported = -1;
-    constructor(element, source, events = {}, options = {}, start = null) {
+    /** The end a paged comic has turned onto, in place of pages. */
+    edge = null;
+    /** The scrolled column's pages, in order, without what's above and below them. */
+    slots = [];
+    ends = {};
+    lastLeft = 0;
+    /** Whether it opened at its end, read back into from what follows it. */
+    fromEnd = false;
+    /**
+     * Where a scrolled column was opened, held there while pages above
+     * load and take their real heights, until the reader moves it.
+     */
+    opened = null;
+    constructor(element, source, events = {}, options = {}, start = null, ends = {}) {
         this.element = element;
         this.source = source;
         this.events = events;
         addStyles();
+        for (const edge of ["before", "after"]) {
+            const content = ends[edge];
+            if (!content)
+                continue;
+            const holder = document.createElement("div");
+            holder.className = "chek-comic-edge";
+            holder.dataset.edge = edge;
+            holder.append(content);
+            this.ends[edge] = holder;
+        }
         this.options = { ...defaults, ...options };
-        const index = typeof start === "number"
-            ? start
-            : start && source.pageIndex
-                ? source.pageIndex(start)
-                : comicPageIndex(start, source.count);
+        this.fromEnd = start === "end";
+        const index = start === "end"
+            ? source.count - 1
+            : typeof start === "number"
+                ? start
+                : start && source.pageIndex
+                    ? source.pageIndex(start)
+                    : comicPageIndex(start, source.count);
         this.start = Math.min(Math.max(index ?? 0, 0), Math.max(source.count - 1, 0));
         element.classList.add("chek-comic");
         element.tabIndex = element.tabIndex >= 0 ? element.tabIndex : 0;
@@ -109,7 +139,8 @@ export class ComicView {
             return;
         const target = Math.min(Math.max(Math.round(index), 0), this.source.count - 1);
         if (this.flow === "scrolled") {
-            this.strip?.children[target]?.scrollIntoView({ block: "start" });
+            this.opened = null;
+            this.slots[target]?.scrollIntoView({ block: "start" });
             this.start = target;
             this.report();
         }
@@ -117,27 +148,57 @@ export class ComicView {
             this.show(screenStart(target, this.spreadsShown), 0);
         }
     }
+    /** Whether something shows before the first page or after the last. */
+    get edges() {
+        return { before: this.ends.before !== undefined, after: this.ends.after !== undefined };
+    }
+    turnPaged(direction) {
+        const count = this.source.count;
+        const result = turn({ start: this.start, edge: this.edge }, direction, {
+            next: nextScreen(this.start, count, this.spreadsShown),
+            previous: previousScreen(this.start, this.spreadsShown),
+            first: 0,
+            last: screenStart(Math.max(count - 1, 0), this.spreadsShown),
+        }, this.edges);
+        switch (result.kind) {
+            case "pages":
+                this.show(result.start, direction);
+                return true;
+            case "edge":
+                this.showEdge(result.edge, direction);
+                return true;
+            case "leave":
+                this.leave(result.toward);
+                return false;
+            case "stay":
+                if (direction === 1)
+                    this.events.end?.();
+                return false;
+        }
+    }
+    /** Whether a key is held down, repeating. Holding one turns pages but never leaves them. */
+    held = false;
+    leave(toward) {
+        if (this.held)
+            return;
+        // One gesture can arrive as several events; it leaves once.
+        const now = performance.now();
+        if (now - this.lastLeft < 600)
+            return;
+        this.lastLeft = now;
+        this.events.leave?.(toward);
+    }
     /** Shows the next page or spread. Returns false at the end. */
     next() {
         if (this.flow === "scrolled")
             return this.scrollBy(1);
-        const next = nextScreen(this.start, this.source.count, this.spreadsShown);
-        if (next === undefined) {
-            this.events.end?.();
-            return false;
-        }
-        this.show(next, 1);
-        return true;
+        return this.turnPaged(1);
     }
     /** Shows the previous page or spread. Returns false at the start. */
     previous() {
         if (this.flow === "scrolled")
             return this.scrollBy(-1);
-        const previous = previousScreen(this.start, this.spreadsShown);
-        if (previous === undefined)
-            return false;
-        this.show(previous, -1);
-        return true;
+        return this.turnPaged(-1);
     }
     /**
      * Zooms in or out by `factor` around the middle of the view, such as
@@ -145,7 +206,7 @@ export class ComicView {
      * page again.
      */
     zoomBy(factor) {
-        if (this.flow !== "paged" || !this.stage)
+        if (this.flow !== "paged" || !this.stage || this.edge)
             return;
         this.zoomTo(this.zoom.scale * factor, this.element.clientWidth / 2, this.element.clientHeight / 2);
     }
@@ -208,7 +269,7 @@ export class ComicView {
                 this.loaded.delete(index);
                 this.pages.delete(index);
                 if (this.flow === "scrolled") {
-                    const image = this.strip?.children[index]?.querySelector("img");
+                    const image = this.slots[index]?.querySelector("img");
                     image?.remove();
                 }
             }
@@ -221,6 +282,8 @@ export class ComicView {
         this.element.replaceChildren();
         this.stage = undefined;
         this.strip = undefined;
+        this.slots = [];
+        this.edge = null;
         this.resetZoom();
         let flow = this.options.flow;
         if (flow === "automatic")
@@ -242,16 +305,15 @@ export class ComicView {
             this.show(screenStart(this.start, this.spreadsShown), 0);
         }
     }
-    // Webtoons are strips several times taller than they're wide. A few
-    // pages after the cover, which is often an ordinary shape, decide.
+    // A few pages after the cover, which is often an ordinary shape even
+    // in a webtoon, decide. See `looksLikeStrip` for what they're asked.
     async looksLikeWebtoon() {
         const count = this.source.count;
-        const sample = [1, 2, 3].filter((index) => index < count);
+        const sample = [1, 2, 3, 4, 5].filter((index) => index < count);
         if (sample.length === 0)
             return false;
         const sizes = await Promise.allSettled(sample.map((index) => this.load(index)));
-        const tall = sizes.filter((size) => size.status === "fulfilled" && size.value.height > size.value.width * 2).length;
-        return tall * 2 > sample.length;
+        return looksLikeStrip(sizes.flatMap((size) => (size.status === "fulfilled" ? [size.value] : [])));
     }
     wantsSpreads() {
         switch (this.options.spreads) {
@@ -271,7 +333,11 @@ export class ComicView {
         if (!force && spreads === this.spreadsShown)
             return;
         this.spreadsShown = spreads;
-        this.show(screenStart(this.start, spreads), 0);
+        // An end stays up through a resize; the pages regroup under it.
+        if (this.edge)
+            this.start = screenStart(this.start, spreads);
+        else
+            this.show(screenStart(this.start, spreads), 0);
     }
     status(text) {
         const status = document.createElement("p");
@@ -283,6 +349,7 @@ export class ComicView {
     /** Shows the screen that starts at `start`. `motion` is 1 going forward, -1 back, 0 for a jump. */
     show(start, motion) {
         this.start = start;
+        this.edge = null;
         this.resetZoom();
         const pages = screenPages(start, this.source.count, this.spreadsShown);
         const stage = document.createElement("div");
@@ -332,6 +399,25 @@ export class ComicView {
             this.load(behind).catch(() => { });
         this.trim(start, keepBehind, keepAhead);
     }
+    /** Shows what's before the first page or after the last, as a screen of its own. */
+    showEdge(edge, motion) {
+        const holder = this.ends[edge];
+        if (!holder)
+            return;
+        this.edge = edge;
+        this.start = edge === "after" ? screenStart(Math.max(this.source.count - 1, 0), this.spreadsShown) : 0;
+        this.resetZoom();
+        const stage = document.createElement("div");
+        stage.className = "chek-comic-stage";
+        stage.dataset.edge = edge;
+        stage.append(holder);
+        this.stage?.remove();
+        this.stage = stage;
+        this.element.append(stage);
+        if (motion !== 0)
+            this.slideIn(stage, motion);
+        this.report();
+    }
     slideIn(stage, motion) {
         if (matchMedia("(prefers-reduced-motion: reduce)").matches)
             return;
@@ -357,7 +443,14 @@ export class ComicView {
             slot.dataset.page = String(index);
             slot.style.aspectRatio = `1 / ${known ? known.height / known.width : ratio}`;
             strip.append(slot);
+            this.slots.push(slot);
         }
+        // What's before and after the pages scrolls with them, above the
+        // first and below the last.
+        if (this.ends.before)
+            strip.prepend(this.ends.before);
+        if (this.ends.after)
+            strip.append(this.ends.after);
         this.strip = strip;
         this.element.append(strip);
         const generation = this.generation;
@@ -378,12 +471,17 @@ export class ComicView {
                     image.src = page.url;
                     slot.style.aspectRatio = `${page.width} / ${page.height}`;
                     slot.append(image);
+                    this.opened?.slot.scrollIntoView({ block: this.opened.block });
                 }, () => { });
             }
         }, { root: this.element, rootMargin: "150% 0px" });
-        for (const slot of strip.children)
+        for (const slot of this.slots)
             this.observer.observe(slot);
-        strip.children[this.start]?.scrollIntoView({ block: "start" });
+        // Read back into, a column shows the foot of its last page, as it was left.
+        const slot = this.slots[this.start];
+        this.opened = slot ? { slot, block: this.fromEnd ? "end" : "start" } : null;
+        this.fromEnd = false;
+        slot?.scrollIntoView({ block: this.opened?.block });
         this.report();
     }
     onScroll() {
@@ -391,7 +489,7 @@ export class ComicView {
             return;
         // The page under the top third of the window is the one being read.
         const line = this.element.getBoundingClientRect().top + this.element.clientHeight / 3;
-        const slots = this.strip.children;
+        const slots = this.slots;
         let low = 0;
         let high = slots.length - 1;
         while (low < high) {
@@ -406,19 +504,24 @@ export class ComicView {
             this.trim(low, scrollKeep, scrollKeep);
             this.report();
         }
-        const bottom = this.element.scrollTop + this.element.clientHeight;
-        if (bottom >= this.element.scrollHeight - 2)
-            this.report();
+        this.report();
+    }
+    /** Whether the column is scrolled as far as it goes, down (1) or up (-1). */
+    scrolledToEnd(direction) {
+        if (direction > 0) {
+            return this.element.scrollTop >= this.element.scrollHeight - this.element.clientHeight - 2;
+        }
+        return this.element.scrollTop <= 0;
     }
     scrollBy(direction) {
-        const before = this.element.scrollTop;
-        const max = this.element.scrollHeight - this.element.clientHeight;
-        if (direction > 0 && before >= max - 2) {
-            this.events.end?.();
+        if (this.scrolledToEnd(direction)) {
+            const toward = direction > 0 ? "after" : "before";
+            if (this.ends[toward])
+                this.leave(toward);
+            else if (direction > 0)
+                this.events.end?.();
             return false;
         }
-        if (direction < 0 && before <= 0)
-            return false;
         this.element.scrollBy({ top: direction * this.element.clientHeight * 0.85, behavior: "smooth" });
         return true;
     }
@@ -427,14 +530,19 @@ export class ComicView {
         const count = this.source.count;
         const pages = this.flow === "scrolled" ? [this.start] : screenPages(this.start, count, this.spreadsShown);
         const last = pages[pages.length - 1] ?? 0;
+        const view = this.element.getBoundingClientRect();
+        // A scrolled comic has reached its end once the foot of its last
+        // page is in view, which is where what's after it begins.
+        const lastSlot = this.slots[this.slots.length - 1];
         const atEnd = this.flow === "scrolled"
-            ? this.element.scrollTop + this.element.clientHeight >= this.element.scrollHeight - 2
-            : last >= count - 1;
-        const key = this.start * 2 + (atEnd ? 1 : 0);
+            ? this.scrolledToEnd(1)
+                || (lastSlot !== undefined && lastSlot.getBoundingClientRect().bottom <= view.bottom + 2)
+            : this.edge !== "before" && last >= count - 1;
+        const key = (this.start * 2 + (atEnd ? 1 : 0)) * 3 + (this.edge === "after" ? 1 : this.edge === "before" ? 2 : 0);
         if (key === this.lastReported)
             return;
         this.lastReported = key;
-        this.events.location?.({ page: this.start, pages, count, locator: this.locator(), atEnd });
+        this.events.location?.({ page: this.start, pages, count, locator: this.locator(), atEnd, edge: this.edge });
     }
     // MARK: - Zoom
     resetZoom() {
@@ -484,6 +592,7 @@ export class ComicView {
             const rtl = this.options.direction === "rtl";
             const scrolled = this.flow === "scrolled";
             let handled = true;
+            this.held = event.repeat;
             switch (event.key) {
                 case "ArrowRight":
                     if (scrolled)
@@ -503,14 +612,15 @@ export class ComicView {
                     break;
                 case "ArrowDown":
                 case "PageDown":
-                    if (scrolled && event.key === "ArrowDown")
+                    // The browser scrolls for the arrow, until there's nothing left to scroll.
+                    if (scrolled && event.key === "ArrowDown" && !this.scrolledToEnd(1))
                         handled = false;
                     else
                         this.next();
                     break;
                 case "ArrowUp":
                 case "PageUp":
-                    if (scrolled && event.key === "ArrowUp")
+                    if (scrolled && event.key === "ArrowUp" && !this.scrolledToEnd(-1))
                         handled = false;
                     else
                         this.previous();
@@ -530,6 +640,7 @@ export class ComicView {
                 default:
                     handled = false;
             }
+            this.held = false;
             if (handled)
                 event.preventDefault();
         }, { signal });
@@ -540,6 +651,9 @@ export class ComicView {
         let tapTimer;
         element.addEventListener("pointerdown", (event) => {
             if (event.button !== 0)
+                return;
+            // What an app puts in an end, such as a link, takes its own clicks.
+            if (event.target?.closest?.("a, button, input, select, textarea, [role=button]"))
                 return;
             down = { x: event.clientX, y: event.clientY, time: event.timeStamp, panX: this.zoom.x, panY: this.zoom.y };
             if (this.zoom.scale > 1)
@@ -576,8 +690,12 @@ export class ComicView {
             const rect = element.getBoundingClientRect();
             const x = event.clientX - rect.left;
             const y = event.clientY - rect.top;
+            const zone = x < rect.width * 0.3 ? "left" : x > rect.width * 0.7 ? "right" : "center";
+            const turns = zone !== "center" && this.zoom.scale === 1;
             // A second tap soon after zooms in or out, in paged comics.
-            if (this.flow === "paged" && event.timeStamp - lastTap < 300) {
+            // Only where a tap doesn't turn the page, so a turn never
+            // has to wait to learn whether a second tap is coming.
+            if (this.flow === "paged" && !this.edge && !turns && event.timeStamp - lastTap < 300) {
                 clearTimeout(tapTimer);
                 lastTap = 0;
                 if (this.zoom.scale > 1)
@@ -586,8 +704,11 @@ export class ComicView {
                     this.zoomTo(2.5, x, y);
                 return;
             }
-            lastTap = event.timeStamp;
-            const zone = x < rect.width * 0.3 ? "left" : x > rect.width * 0.7 ? "right" : "center";
+            lastTap = turns ? 0 : event.timeStamp;
+            // A turn can put an end's page under the finger. The click
+            // that follows the tap belongs to the page turned from.
+            if (turns)
+                swallowClick = event.timeStamp + 500;
             const act = () => {
                 if (zone === "center" || this.zoom.scale > 1) {
                     this.events.tap?.();
@@ -603,18 +724,53 @@ export class ComicView {
                 }
             };
             // Waits a moment so a double tap doesn't also turn the page.
-            if (this.flow === "paged")
+            if (this.flow === "paged" && !turns && !this.edge)
                 tapTimer = setTimeout(act, 220);
             else
                 act();
         }, { signal });
         element.addEventListener("pointercancel", () => (down = undefined), { signal });
+        let swallowClick = 0;
+        element.addEventListener("click", (event) => {
+            if (event.timeStamp > swallowClick)
+                return;
+            swallowClick = 0;
+            event.preventDefault();
+            event.stopPropagation();
+        }, { signal, capture: true });
         // The wheel turns pages, one per gesture, and zooms with Control
         // or a trackpad pinch.
         let wheelLock = 0;
+        // Wheels and trackpads keep sending events as a scroll coasts to a
+        // stop. Leaving the pages takes a push that starts after the last
+        // one has come to rest, so coasting into an end never goes through it.
+        let lastWheel = 0;
+        let armed = false;
+        let pushed = 0;
         element.addEventListener("wheel", (event) => {
-            if (this.flow === "scrolled" && !event.ctrlKey)
+            const fresh = event.timeStamp - lastWheel > 180;
+            lastWheel = event.timeStamp;
+            if (this.flow === "scrolled" && !event.ctrlKey) {
+                const direction = Math.sign(event.deltaY);
+                if (direction === 0 || !this.scrolledToEnd(direction)) {
+                    armed = false;
+                    pushed = 0;
+                    return;
+                }
+                if (fresh)
+                    armed = true;
+                if (!armed)
+                    return;
+                // More than one notch of a mouse wheel, so a last nudge
+                // to see the foot of the page doesn't go through it.
+                pushed += Math.abs(event.deltaY);
+                if (pushed >= 150) {
+                    armed = false;
+                    pushed = 0;
+                    this.scrollBy(direction);
+                }
                 return;
+            }
             event.preventDefault();
             if (event.ctrlKey) {
                 const rect = element.getBoundingClientRect();
@@ -631,6 +787,9 @@ export class ComicView {
             const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
             if (Math.abs(delta) < 4 || event.timeStamp < wheelLock)
                 return;
+            // On an end, the turn that leaves it is a push of its own.
+            if (this.edge && !fresh)
+                return;
             wheelLock = event.timeStamp + 350;
             if (delta > 0)
                 this.next();
@@ -638,5 +797,30 @@ export class ComicView {
                 this.previous();
         }, { signal, passive: false });
         element.addEventListener("scroll", () => this.onScroll(), { signal, passive: true });
+        for (const moved of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+            element.addEventListener(moved, () => (this.opened = null), { signal, passive: true, capture: true });
+        }
+        // A finger pulling a scrolled comic on past its end, or back past
+        // its start, leaves through that end. The browser takes over a
+        // touch that scrolls, so pointer events never see it through.
+        let pull;
+        element.addEventListener("touchstart", (event) => {
+            pull =
+                this.flow === "scrolled" && event.touches.length === 1
+                    ? { y: event.touches[0].clientY, atTop: this.scrolledToEnd(-1), atBottom: this.scrolledToEnd(1) }
+                    : undefined;
+        }, { signal, passive: true });
+        element.addEventListener("touchend", (event) => {
+            const start = pull;
+            pull = undefined;
+            const touch = event.changedTouches[0];
+            if (!start || !touch)
+                return;
+            const moved = touch.clientY - start.y;
+            if (start.atBottom && moved < -70 && this.scrolledToEnd(1))
+                this.scrollBy(1);
+            else if (start.atTop && moved > 70 && this.scrolledToEnd(-1))
+                this.scrollBy(-1);
+        }, { signal, passive: true });
     }
 }

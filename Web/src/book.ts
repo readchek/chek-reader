@@ -10,6 +10,7 @@
 // a page the app serves from its own origin; see the README's
 // "Books" section for the files and the headers it needs.
 
+import type { Edge } from "./flow.js";
 import type { Publication, TocItem } from "./publication.js";
 import { splitFragment } from "./href.js";
 import type { Locator } from "./locator.js";
@@ -52,6 +53,8 @@ export interface BookLocation {
     chapter: TocItem | undefined;
     atStart: boolean;
     atEnd: boolean;
+    /** The end that's on screen in place of the page, when the reader has turned onto one. */
+    edge: Edge | null;
 }
 
 export interface BookEvents {
@@ -65,8 +68,14 @@ export interface BookEvents {
      * these moves. Touches don't count. Sent at most every 100 ms.
      */
     pointer(): void;
-    /** A turn past the last page. */
+    /** A turn past the last page when nothing is given to show after it. */
     end(): void;
+    /**
+     * Reading on past what's after the last page, or back past what's
+     * before the first, which apps use to open the next or previous book
+     * or chapter. Only an end that was given can be left through.
+     */
+    leave(toward: Edge): void;
     /** A link out of the book, to open elsewhere. */
     externalLink(url: string): void;
     /**
@@ -83,6 +92,13 @@ export interface BookOptions {
     /** The address of the reader's frame page, served by the app. */
     frameUrl: string;
     preferences: BookPreferences;
+    /**
+     * What shows one turn before the first page and one turn after the
+     * last, such as what joins one chapter to the next. The view places
+     * the elements over the page and the app draws what's in them, as
+     * `ComicView` does with its `ends`.
+     */
+    ends?: { before?: HTMLElement; after?: HTMLElement };
 }
 
 interface PageState {
@@ -134,6 +150,7 @@ const styles = `
 .chek-book { overflow: hidden; outline: none; }
 .chek-book-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; visibility: hidden; background: transparent; }
 .chek-book-frame[data-current] { visibility: visible; }
+.chek-book-edge { position: absolute; inset: 0; }
 `;
 
 let sheet: CSSStyleSheet | undefined;
@@ -160,6 +177,11 @@ export class BookView {
     private readonly positionCount: number;
     private destroyed = false;
     private lastLocation: BookLocation | undefined;
+    /** The end the reader has turned onto, shown over the page it came from. */
+    private edge: Edge | null = null;
+    private readonly ends: { before?: HTMLDivElement; after?: HTMLDivElement } = {};
+    private lastLeft = 0;
+    private lastWheel = 0;
 
     constructor(
         private readonly element: HTMLElement,
@@ -179,6 +201,12 @@ export class BookView {
         element.classList.add("chek-book");
         if (element.tabIndex < 0) {
             element.tabIndex = 0;
+        }
+        for (const edge of ["before", "after"] as const) {
+            const content = options.ends?.[edge];
+            if (content) {
+                this.ends[edge] = this.edgeHolder(edge, content);
+            }
         }
         window.addEventListener("message", this.receive);
         // Keys turn pages wherever focus is on the page, such as on a
@@ -263,6 +291,8 @@ export class BookView {
         this.destroyed = true;
         window.removeEventListener("message", this.receive);
         window.removeEventListener("keydown", this.keydown);
+        this.ends.before?.remove();
+        this.ends.after?.remove();
         for (const slot of this.slots) {
             slot.frame.remove();
             for (const reply of slot.replies.values()) {
@@ -309,10 +339,111 @@ export class BookView {
         await this.show(slot, state);
     }
 
-    private async turn(step: 1 | -1): Promise<void> {
+    /**
+     * An end's element, which sits over the page and so takes the taps,
+     * swipes and wheel the page's own frame would have.
+     */
+    private edgeHolder(edge: Edge, content: HTMLElement): HTMLDivElement {
+        const holder = document.createElement("div");
+        holder.className = "chek-book-edge";
+        holder.dataset.edge = edge;
+        holder.append(content);
+        const rtl = this.book.metadata.readingProgression === "rtl";
+        let down: { x: number; y: number } | undefined;
+        holder.addEventListener("pointerdown", (event) => {
+            // What an app puts in an end, such as a link, takes its own clicks.
+            const target = event.target instanceof Element ? event.target : null;
+            down = event.button === 0 && !target?.closest("a, button, input, select, textarea, [role=button]")
+                ? { x: event.clientX, y: event.clientY }
+                : undefined;
+        });
+        holder.addEventListener("pointerup", (event) => {
+            if (!down) {
+                return;
+            }
+            const dx = event.clientX - down.x;
+            const dy = event.clientY - down.y;
+            down = undefined;
+            let leftward: boolean;
+            if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                // Swiping toward the left reveals what's to the right.
+                leftward = dx > 0;
+            } else if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                return;
+            } else {
+                const rect = holder.getBoundingClientRect();
+                const x = (event.clientX - rect.left) / Math.max(rect.width, 1);
+                if (x >= 0.3 && x <= 0.7) {
+                    this.events.tap?.();
+                    return;
+                }
+                leftward = x < 0.3;
+            }
+            const step = leftward === rtl ? 1 : -1;
+            void this.enqueue(() => this.turn(step));
+        });
+        holder.addEventListener("pointercancel", () => (down = undefined));
+        holder.addEventListener("wheel", (event) => {
+            event.preventDefault();
+            // A scroll that coasts onto an end doesn't go through it: the
+            // turn that leaves is a push of its own.
+            const fresh = event.timeStamp - this.lastWheel > 180;
+            this.lastWheel = event.timeStamp;
+            const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+            if (!fresh || Math.abs(delta) < 4) {
+                return;
+            }
+            const step = delta > 0 ? 1 : -1;
+            void this.enqueue(() => this.turn(step));
+        }, { passive: false });
+        return holder;
+    }
+
+    /** Shows an end over the page, or takes it away, and says so. */
+    private async setEdge(edge: Edge | null): Promise<void> {
+        if (this.edge === edge) {
+            return;
+        }
+        if (this.edge) {
+            this.ends[this.edge]?.remove();
+        }
+        this.edge = edge;
+        const holder = edge ? this.ends[edge] : undefined;
+        if (holder) {
+            this.element.append(holder);
+            // Keys pressed in the page's frame would turn it under the end.
+            this.element.focus({ preventScroll: true });
+        }
+        if (this.current) {
+            await this.report(this.current);
+        }
+    }
+
+    private leave(toward: Edge, held: boolean) {
+        // Holding a key turns pages but never leaves them, and one
+        // gesture that arrives as several events leaves once.
+        const now = performance.now();
+        if (held || now - this.lastLeft < 600) {
+            return;
+        }
+        this.lastLeft = now;
+        this.events.leave?.(toward);
+    }
+
+    private async turn(step: 1 | -1, held = false): Promise<void> {
         const slot = this.current;
         const state = slot?.state;
         if (!slot || !state) {
+            return;
+        }
+        if (this.edge) {
+            // On from what's after, or back from what's before, leaves.
+            // The other way returns to the page it came from.
+            if ((this.edge === "after") === (step > 0)) {
+                this.leave(this.edge, held);
+            } else {
+                await this.setEdge(null);
+            }
             return;
         }
         const page = state.page + step;
@@ -322,10 +453,17 @@ export class BookView {
         }
         const index = slot.resource + step;
         if (index < 0) {
+            if (this.ends.before) {
+                await this.setEdge("before");
+            }
             return;
         }
         if (index >= this.book.readingOrder.length) {
-            this.events.end?.();
+            if (this.ends.after) {
+                await this.setEdge("after");
+            } else {
+                this.events.end?.();
+            }
             return;
         }
         const next = await this.load(index);
@@ -347,6 +485,11 @@ export class BookView {
 
     private async show(slot: Slot, state: PageState): Promise<void> {
         slot.state = state;
+        // Any move to a page is a move off an end.
+        if (this.edge) {
+            this.ends[this.edge]?.remove();
+            this.edge = null;
+        }
         if (this.current !== slot) {
             // Keys go to the focused frame, and one that's hidden would keep
             // them from the page on screen.
@@ -579,7 +722,8 @@ export class BookView {
         const step = this.keyStep(keys[event.key] ?? "");
         if (step !== 0) {
             event.preventDefault();
-            void this.enqueue(() => this.turn(step as 1 | -1));
+            const held = event.repeat;
+            void this.enqueue(() => this.turn(step as 1 | -1, held));
         }
     };
 
@@ -620,6 +764,7 @@ export class BookView {
             chapter,
             atStart: slot.resource === 0 && state.page === 0,
             atEnd,
+            edge: this.edge,
         };
         this.events.location?.(this.lastLocation);
     }

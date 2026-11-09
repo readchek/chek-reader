@@ -248,6 +248,18 @@ const view = new BookView(element, epub, {
 
 Each page is in a sandboxed frame, so while it has focus the app's document doesn't see key presses or mouse moves. `BookView` passes the keys it doesn't use, such as Escape, to the `key` event, and reports mouse moves over the page to the `pointer` event, for apps that show their controls on hover. `chapterAt(progression)` names the chapter at a point through the book, such as under a slider's thumb.
 
+To read on from one chapter or book into the next, give either view an element for each end. `ComicView` takes `{ before, after }` as its last argument, and `BookView` takes them as the `ends` option. The view places `after` one turn past the last page, or below the last page of a scrolled comic, and `before` one turn ahead of the first. Draw what you like in them, such as the next chapter's title. The location's `edge` says when one is showing. When the reader turns or scrolls on through an end, the `leave` event fires with `"after"` or `"before"`, and your app opens what's there. Turning the other way returns to the page they came from. Pass `"end"` as a `ComicView`'s start to open a chapter at its last page, for a reader coming back into it.
+
+```ts
+const after = document.createElement("div")
+after.textContent = `Next: ${next.title}`
+const view = new ComicView(element, pages, {
+	leave: (toward) => open(toward === "after" ? next : previous),
+}, { flow: "automatic" }, savedLocator, { after })
+```
+
+With `flow: "automatic"`, `ComicView` reads a comic as one scrolling column when its first pages look like a strip, and `looksLikeStrip(sizes)` is the same test for apps that decide before opening.
+
 Plain text and Markdown open with `TextBook.plainText(file, fileName)` and `TextBook.markdown(file, fileName)`, which convert them to XHTML chapters exactly as the Swift package does, and read in `BookView` like any EPUB.
 
 PDFs open from a separate entry, `@readchek/reader/pdf`, which uses [pdf.js](https://github.com/mozilla/pdf.js) (Apache-2.0). Install `pdfjs-dist` at the version in this package's `peerDependencies` to use it. Apps that never import it don't need pdf.js. `PdfDocument` draws each page with pdf.js and reads in `ComicView`, with the Swift package's PDF locators. Serve pdf.js's worker from your app's origin, and its `cmaps` and `standard_fonts` folders for PDFs that don't embed their fonts:
