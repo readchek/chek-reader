@@ -34,4 +34,17 @@ import Testing
         #expect(!StripDetection.looksLikeStrip([]))
         #expect(!StripDetection.looksLikeStrip([page(0, 0)]))
     }
+
+    @Test func theLastPageIsReadOnceItsFootIsOnScreen() {
+        // Four short pages: the reading line is still on the third when the
+        // strip can scroll no further.
+        #expect(StripDetection.pageBeingRead(probed: 2, last: 3, lastFoot: 2400, screenFoot: 2400) == 3)
+        #expect(StripDetection.pageBeingRead(probed: 2, last: 3, lastFoot: 2400, screenFoot: 2399) == 3)
+    }
+
+    @Test func thePageUnderTheReadingLineIsReadBeforeThen() {
+        #expect(StripDetection.pageBeingRead(probed: 2, last: 3, lastFoot: 2400, screenFoot: 2000) == 2)
+        #expect(StripDetection.pageBeingRead(probed: nil, last: 3, lastFoot: nil, screenFoot: 800) == nil)
+        #expect(StripDetection.pageBeingRead(probed: nil, last: -1, lastFoot: 0, screenFoot: 800) == nil)
+    }
 }
