@@ -38,4 +38,15 @@ enum StripDetection {
         guard let tallest = heights.max(), let shortest = heights.min(), let longest = ratios.max() else { return false }
         return Double(tallest) > Double(shortest) * 1.25 && longest >= 1.7
     }
+
+    /// The page a scrolled strip counts as being read: the one under the
+    /// reading line, or the last page once its foot is on screen. Short last
+    /// pages never climb to the reading line, since the strip stops scrolling
+    /// with them at the foot of the screen, so without this a strip read to
+    /// its end would still report an earlier page. The web reader's `atEnd`
+    /// is the same rule.
+    static func pageBeingRead(probed: Int?, last: Int, lastFoot: Double?, screenFoot: Double) -> Int? {
+        if last >= 0, let lastFoot, lastFoot <= screenFoot + 2 { return last }
+        return probed
+    }
 }

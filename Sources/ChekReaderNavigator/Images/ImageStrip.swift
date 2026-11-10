@@ -266,11 +266,18 @@ final class ImageStripController: UIViewController, UICollectionViewDataSource, 
         guard edge == nil else { return }
         // The page at the upper third of the screen is the one being read.
         let probe = CGPoint(x: scrollView.bounds.midX, y: scrollView.contentOffset.y + scrollView.bounds.height / 3)
-        guard let indexPath = collectionView.indexPathForItem(at: probe), indexPath.section == Section.pages.rawValue,
-              indexPath.item != reportedIndex
-        else { return }
-        reportedIndex = indexPath.item
-        navigator.didShow(indexPath.item)
+        let probed = collectionView.indexPathForItem(at: probe).flatMap { $0.section == Section.pages.rawValue ? $0.item : nil }
+        let last = navigator.pageCount - 1
+        let lastFoot = last >= 0 ? collectionView.layoutAttributesForItem(at: pageIndexPath(last))?.frame.maxY : nil
+        let shown = StripDetection.pageBeingRead(
+            probed: probed,
+            last: last,
+            lastFoot: lastFoot.map(Double.init),
+            screenFoot: Double(scrollView.contentOffset.y + scrollView.bounds.height)
+        )
+        guard let shown, shown != reportedIndex else { return }
+        reportedIndex = shown
+        navigator.didShow(shown)
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
